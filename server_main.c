@@ -228,11 +228,11 @@ int server_action(int fd, char *buf, unsigned int bufLen)
 		//===== 在这里根据客户端的请求内容, 提供相应的服务 =====
 		
 		if(strstr(buf, "connect") != NULL)     // 成功连上之后, 发个测试数据
-		    ret = webSocket_send(fd, "Hello !", strlen("Hello !"), false, WCT_TXTDATA);
+		    ret = webSocket_send(fd, "Hello !", strlen("Hello !"), false, WDT_TXTDATA);
 		else if(strstr(buf, "Hello") != NULL)
-		    ret = webSocket_send(fd, "I am Server_Test", strlen("I am Server_Test"), false, WCT_TXTDATA);
+		    ret = webSocket_send(fd, "I am Server_Test", strlen("I am Server_Test"), false, WDT_TXTDATA);
 		else
-		    ret = webSocket_send(fd, "You are carefree ...", strlen("You are carefree ..."), false, WCT_TXTDATA);
+		    ret = webSocket_send(fd, "You are carefree ...", strlen("You are carefree ..."), false, WDT_TXTDATA);
 		// ... ...
 		// ...
 	}
@@ -271,7 +271,7 @@ int main(void)
 	            client_fd = ws.client_fd_array[i][0];
 	            /////////////////////////////////////////////////////////////////////////////////////////////   服务器可以在这里对所有已连入的客户端 推送点垃圾广告
 	            
-	            ret = webSocket_send(client_fd, "\\O^O/  <-.<-  TAT  =.=#  -.-! ...", strlen("\\O^O/  <-.<-  TAT  =.=#  -.-! ..."), false, WCT_TXTDATA);
+	            ret = webSocket_send(client_fd, "\\O^O/  <-.<-  TAT  =.=#  -.-! ...", strlen("\\O^O/  <-.<-  TAT  =.=#  -.-! ..."), false, WDT_TXTDATA);
 	            
 	            /////////////////////////////////////////////////////////////////////////////////////////////
 	        }

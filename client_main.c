@@ -19,7 +19,7 @@ int main(void)
     //
     sleep(1);
     //
-    ret = webSocket_send(fd, "Hello !", strlen("Hello !"), true, WCT_TXTDATA);
+    ret = webSocket_send(fd, "Hello !", strlen("Hello !"), true, WDT_TXTDATA);
     //
     printf("\r\n\r\n========== client start ! ==========\r\n\r\n");
     //
@@ -31,9 +31,9 @@ int main(void)
         {
             printf("client recv : len/%d %s\r\n", ret, buf);
             if(strstr(buf, "Hello") != NULL)
-                ret = webSocket_send(fd, "I am Client_Test", strlen("I am Client_Test"), true, WCT_TXTDATA);
+                ret = webSocket_send(fd, "I am Client_Test", strlen("I am Client_Test"), true, WDT_TXTDATA);
             else if(strstr(buf, "Server_Test") != NULL)
-                ret = webSocket_send(fd, "I am free now !", strlen("I am free now !"), true, WCT_TXTDATA);
+                ret = webSocket_send(fd, "I am free now !", strlen("I am free now !"), true, WDT_TXTDATA);
             else
                 ;
             //
@@ -60,7 +60,7 @@ int main(void)
         if(timeCount >= 4000)   /////////////////////////////////////////////////////////////////////////////  每4s 客户端可以在这里定时骚扰一下服务器
         {
             timeCount = 0;
-            ret = webSocket_send(fd, "#%^#@@@DTG%^&&+_)+(*^%!HHI", strlen("#%^#@@@DTG%^&&+_)+(*^%!HHI"), true, WCT_TXTDATA);
+            ret = webSocket_send(fd, "#%^#@@@DTG%^&&+_)+(*^%!HHI", strlen("#%^#@@@DTG%^&&+_)+(*^%!HHI"), true, WDT_TXTDATA);
             if(ret <= 0)
             {
                 close(fd);

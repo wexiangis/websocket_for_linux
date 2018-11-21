@@ -381,15 +381,15 @@ int base64_decode( const char *base64, unsigned char *bindata)
 /*
 // websocket根据data[0]判别数据包类型
 typedef enum{
-    WCT_MINDATA = -20,      // 0x0：标识一个中间数据包
-    WCT_TXTDATA = -19,      // 0x1：标识一个text类型数据包
-    WCT_BINDATA = -18,      // 0x2：标识一个binary类型数据包
-    WCT_DISCONN = -17,      // 0x8：标识一个断开连接类型数据包
-    WCT_PING = -16,     // 0x8：标识一个断开连接类型数据包
-    WCT_PONG = -15,     // 0xA：表示一个pong类型数据包
-    WCT_ERR = -1,
-    WCT_NULL = 0
-}Websocket_CommunicationType;*/
+    WDT_MINDATA = -20,      // 0x0：标识一个中间数据包
+    WDT_TXTDATA = -19,      // 0x1：标识一个text类型数据包
+    WDT_BINDATA = -18,      // 0x2：标识一个binary类型数据包
+    WDT_DISCONN = -17,      // 0x8：标识一个断开连接类型数据包
+    WDT_PING = -16,     // 0x8：标识一个断开连接类型数据包
+    WDT_PONG = -15,     // 0xA：表示一个pong类型数据包
+    WDT_ERR = -1,
+    WDT_NULL = 0
+}WebsocketData_Type;*/
 
 /*******************************************************************************
  * 名称: webSocket_getRandomString
@@ -560,7 +560,7 @@ void webSocket_buildHttpRespond(unsigned char *acceptKey, unsigned int acceptKey
  * 返回: 打包后的长度(会比原数据长2~16个字节不等)      <=0 打包失败 
  * 说明: 无
  ******************************************************************************/
-int webSocket_enPackage(unsigned char *data, unsigned int dataLen, unsigned char *package, unsigned int packageMaxLen, bool isMask, Websocket_CommunicationType type)
+int webSocket_enPackage(unsigned char *data, unsigned int dataLen, unsigned char *package, unsigned int packageMaxLen, bool isMask, WebsocketData_Type type)
 {
     unsigned char maskKey[4] = {0};    // 掩码
     unsigned char temp1, temp2;
@@ -570,17 +570,17 @@ int webSocket_enPackage(unsigned char *data, unsigned int dataLen, unsigned char
     if(packageMaxLen < 2)
         return -1;
     
-    if(type == WCT_MINDATA)
+    if(type == WDT_MINDATA)
         *package++ = 0x00;
-    else if(type == WCT_TXTDATA)
+    else if(type == WDT_TXTDATA)
         *package++ = 0x81;
-    else if(type == WCT_BINDATA)
+    else if(type == WDT_BINDATA)
         *package++ = 0x82;
-    else if(type == WCT_DISCONN)
+    else if(type == WDT_DISCONN)
         *package++ = 0x88;
-    else if(type == WCT_PING)
+    else if(type == WDT_PING)
         *package++ = 0x89;
-    else if(type == WCT_PONG)
+    else if(type == WDT_PONG)
         *package++ = 0x8A;
     else
         return -1;
@@ -678,22 +678,22 @@ int webSocket_dePackage(unsigned char *data, unsigned int dataLen, unsigned char
     if((data[0]&0x80) == 0x80)
     {
         if(type == 0x01) 
-            ret = WCT_TXTDATA;
+            ret = WDT_TXTDATA;
         else if(type == 0x02) 
-            ret = WCT_BINDATA;
+            ret = WDT_BINDATA;
         else if(type == 0x08) 
-            ret = WCT_DISCONN;
+            ret = WDT_DISCONN;
         else if(type == 0x09) 
-            ret = WCT_PING;
+            ret = WDT_PING;
         else if(type == 0x0A) 
-            ret = WCT_PONG;
+            ret = WDT_PONG;
         else 
-            return WCT_ERR;
+            return WDT_ERR;
     }
     else if(type == 0x00) 
-        ret = WCT_MINDATA;
+        ret = WDT_MINDATA;
     else
-        return WCT_ERR;
+        return WDT_ERR;
     //
     if((data[1] & 0x80) == 0x80)
     {
@@ -711,11 +711,11 @@ int webSocket_dePackage(unsigned char *data, unsigned int dataLen, unsigned char
     if(len == 126)
     {
         if(dataLen < 4)
-            return WCT_ERR;
+            return WDT_ERR;
         len = data[2];
         len = (len << 8) + data[3];
         if(dataLen < len + 4 + count)
-            return WCT_ERR;
+            return WDT_ERR;
         if(Mask)
         {
             maskKey[0] = data[4];
@@ -730,15 +730,15 @@ int webSocket_dePackage(unsigned char *data, unsigned int dataLen, unsigned char
     else if(len == 127)
     {
         if(dataLen < 10)
-            return WCT_ERR;
+            return WDT_ERR;
         if(data[2] != 0 || data[3] != 0 || data[4] != 0 || data[5] != 0)    // 使用8个字节存储长度时, 前4位必须为0, 装不下那么多数据...
-            return WCT_ERR;
+            return WDT_ERR;
         len = data[6];
         len = (len << 8) + data[7];
         len = (len << 8) + data[8];
         len = (len << 8) + data[9];
         if(dataLen < len + 10 + count)
-            return WCT_ERR;
+            return WDT_ERR;
         if(Mask)
         {
             maskKey[0] = data[10];
@@ -753,7 +753,7 @@ int webSocket_dePackage(unsigned char *data, unsigned int dataLen, unsigned char
     else
     {
         if(dataLen < len + 2 + count)
-            return WCT_ERR;
+            return WDT_ERR;
         if(Mask)
         {
             maskKey[0] = data[2];
@@ -767,10 +767,10 @@ int webSocket_dePackage(unsigned char *data, unsigned int dataLen, unsigned char
     }
     //
     if(dataLen < len + dataStart)
-        return WCT_ERR;
+        return WDT_ERR;
     //
     if(packageMaxLen < len + 1)
-        return WCT_ERR;
+        return WDT_ERR;
     //
     if(Mask)    // 解包数据使用掩码时, 使用异或解码, maskKey[4]依次和数据异或运算, 逻辑如下
     {
@@ -955,7 +955,7 @@ int webSocket_serverLinkToClient(int fd, char *recvBuf, unsigned int bufLen)
  * 返回: 调用send的返回
  * 说明: 无
  ******************************************************************************/
-int webSocket_send(int fd, unsigned char *data, unsigned int dataLen, bool mod, Websocket_CommunicationType type)
+int webSocket_send(int fd, unsigned char *data, unsigned int dataLen, bool mod, WebsocketData_Type type)
 {
     unsigned char *webSocketPackage;
     unsigned int retLen, ret;
@@ -1015,16 +1015,16 @@ int webSocket_recv(int fd, unsigned char *data, unsigned int dataMaxLen)
         //---------- websocket数据打包 ----------
         webSocketPackage = (unsigned char *)calloc(1, sizeof(char)*(ret + 128));  memset(webSocketPackage, 0, (ret + 128));
         ret2 = webSocket_dePackage(recvBuf, ret, webSocketPackage, (ret + 128), &retLen);
-        if(ret2 == WCT_PING && retLen > 0)      // 解析为ping包, 自动回pong
+        if(ret2 == WDT_PING && retLen > 0)      // 解析为ping包, 自动回pong
         {
-            webSocket_send(fd, webSocketPackage, retLen, true, WCT_PONG);
+            webSocket_send(fd, webSocketPackage, retLen, true, WDT_PONG);
             // 显示数据
             printf("webSocket_recv : PING %d\r\n%s\r\n" , retLen, webSocketPackage); 
             free(recvBuf);
             free(webSocketPackage);
-            return WCT_NULL;
+            return WDT_NULL;
         }
-        else if(retLen > 0 && (ret2 == WCT_TXTDATA || ret2 == WCT_BINDATA || ret2 == WCT_MINDATA))  // 解析为数据包
+        else if(retLen > 0 && (ret2 == WDT_TXTDATA || ret2 == WDT_BINDATA || ret2 == WDT_MINDATA))  // 解析为数据包
         {
             memcpy(data, webSocketPackage, retLen);     // 把解析得到的数据复制出去
             /*
