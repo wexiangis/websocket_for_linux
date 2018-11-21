@@ -8,7 +8,7 @@ int main(void)
 {
     int ret, timeCount = 0;
     int fd;
-    char buf[1024];
+    char buf[10240];
     //
     fd = webSocket_clientLinkToServer(ip, port, "/null");
     if(fd <= 0)

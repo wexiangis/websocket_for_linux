@@ -10,7 +10,7 @@ typedef struct{
     int client_fd_array[EPOLL_RESPOND_NUM][2];
     char ip[24];
     int port;
-    char buf[1024];
+    char buf[10240];
     CallBackFun action;
 }Websocket_Server;
 
@@ -226,7 +226,6 @@ int server_action(int fd, char *buf, unsigned int bufLen)
 		printf("server fd/%d : len/%d %s\r\n", fd, ret, buf);
 		
 		//===== 在这里根据客户端的请求内容, 提供相应的服务 =====
-		
 		if(strstr(buf, "connect") != NULL)     // 成功连上之后, 发个测试数据
 		    ret = webSocket_send(fd, "Hello !", strlen("Hello !"), false, WDT_TXTDATA);
 		else if(strstr(buf, "Hello") != NULL)
@@ -236,6 +235,11 @@ int server_action(int fd, char *buf, unsigned int bufLen)
 		// ... ...
 		// ...
 	}
+    else if(ret < 0)
+    {
+        if(strncmp(buf, "GET", 3) == 0)	//握手,建立连接
+            ret = webSocket_serverLinkToClient(fd, buf, ret);
+    }
 	return ret;
 }
 
