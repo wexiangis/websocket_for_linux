@@ -1,6 +1,27 @@
 
 #include "websocket_common.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>     // 使用 malloc, calloc等动态分配内存方法
+#include <time.h>       // 获取系统时间
+#include <errno.h>
+#include <fcntl.h>      // 非阻塞
+#include <sys/un.h> 
+#include <arpa/inet.h>  // inet_addr()
+#include <unistd.h>     // close()
+#include <sys/types.h>  // 文件IO操作
+#include <sys/socket.h> //
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/ip_icmp.h>
+#include <netdb.h>      // gethostbyname, gethostbyname2, gethostbyname_r, gethostbyname_r2
+#include <sys/un.h> 
+#include <sys/time.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#include <sys/ioctl.h>  // SIOCSIFADDR
+
 //==============================================================================================
 //======================================== 设置和工具部分 =======================================
 //==============================================================================================
@@ -19,6 +40,49 @@ void webSocket_delayms(unsigned int ms)
     tim.tv_sec = ms/1000;
     tim.tv_usec = (ms%1000)*1000;
     select(0, NULL, NULL, NULL, &tim);
+}
+
+//-------------------- IP控制 --------------------
+
+int netCheck_setIP(char *devName, char *ip)
+{
+    struct ifreq temp;
+    struct sockaddr_in *addr;
+    int fd, ret;
+    //
+    strcpy(temp.ifr_name, devName);
+    if((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+      return -1;
+    //
+    addr = (struct sockaddr_in *)&(temp.ifr_addr);
+    addr->sin_family = AF_INET;
+    addr->sin_addr.s_addr = inet_addr(ip);
+    ret = ioctl(fd, SIOCSIFADDR, &temp);
+    //
+    close(fd);
+    if(ret < 0)
+       return -1;
+    return 0;
+}
+
+void netCheck_getIP(char *devName, char *ip)
+{
+    struct ifreq temp;
+    struct sockaddr_in *addr;
+    int fd, ret;
+    //
+    strcpy(temp.ifr_name, devName);
+    if((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        return;
+    ret = ioctl(fd, SIOCGIFADDR, &temp);
+    close(fd);
+    if(ret < 0)
+        return;
+    //
+    addr = (struct sockaddr_in *)&(temp.ifr_addr);
+    strcpy(ip, inet_ntoa(addr->sin_addr));
+    //
+    // return ip;
 }
 
 //==================== 域名转IP ====================

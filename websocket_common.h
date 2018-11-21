@@ -2,27 +2,7 @@
 #ifndef _WEBSOCKET_COMMON_H_
 #define _WEBSOCKET_COMMON_H_
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>     // 使用 malloc, calloc等动态分配内存方法
 #include <stdbool.h>
-#include <time.h>       // 获取系统时间
-#include <errno.h>
-#include <fcntl.h>      // 非阻塞
-#include <sys/un.h> 
-#include <arpa/inet.h>  // inet_addr()
-//文件IO操作
-#include <unistd.h>     // close()
-#include <sys/types.h>
-#include <sys/socket.h>
-//域名转IP
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h>
-#include <netdb.h>      // gethostbyname, gethostbyname2, gethostbyname_r, gethostbyname_r2
-#include <sys/un.h> 
-#include <sys/epoll.h>  // epoll管理服务器的连接和接收触发
-#include <pthread.h>    // 使用多线程
 
 // #define WEBSOCKET_DEBUG
 
@@ -46,8 +26,10 @@ int webSocket_recv(int fd, char *data, int dataMaxLen);
 
 void webSocket_delayms(unsigned int ms);
 
-//
-int websocket_getIpByHostName(char *hostName, char *backIp);
+// 其它工具
+int websocket_getIpByHostName(char *hostName, char *backIp);//域名转 IP
+int netCheck_setIP(char *devName, char *ip);
+void netCheck_getIP(char *devName, char *ip);//设置和获取本机IP  *devName设备名称如: eth0
 
 #endif
 

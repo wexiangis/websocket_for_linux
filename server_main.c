@@ -1,6 +1,17 @@
 
 #include "websocket_common.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <sys/epoll.h>  // epoll管理服务器的连接和接收触发
+#include <sys/socket.h>
+#include <netinet/ip.h>
+#include <pthread.h>    // 使用多线程
+
 #define		EPOLL_RESPOND_NUM		100		// epoll同时响应事件数量
 
 typedef int (*CallBackFun)(int fd, char *buf, unsigned int bufLen);

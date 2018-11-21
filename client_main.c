@@ -1,7 +1,18 @@
 
 #include "websocket_common.h"
 
-char ip[] = "172.16.23.160";// 本机IP
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <sys/epoll.h>  // epoll管理服务器的连接和接收触发
+#include <sys/socket.h>
+#include <netinet/ip.h>
+#include <pthread.h>    // 使用多线程
+
+char ip[24] = {0};//"172.16.23.160";// 本机IP
 int port = 9999;
 
 int main(void)
@@ -10,8 +21,8 @@ int main(void)
     int fd;
     char buf[10240];
     //
-    fd = webSocket_clientLinkToServer(ip, port, "/null");
-    if(fd <= 0)
+    netCheck_getIP("eth0", ip);
+    if((fd = webSocket_clientLinkToServer(ip, port, "/null")) <= 0)
     {
         printf("client link to server failed !\r\n");
         return -1;
@@ -57,7 +68,7 @@ int main(void)
         webSocket_delayms(10);
         timeCount += 10;
         //
-        if(timeCount >= 4000)   /////////////////////////////////////////////////////////////////////////////  每4s 客户端可以在这里定时骚扰一下服务器
+        if(timeCount >= 4000)   //  每4s 客户端可以在这里定时骚扰一下服务器
         {
             timeCount = 0;
             ret = webSocket_send(fd, "#%^#@@@DTG%^&&+_)+(*^%!HHI", strlen("#%^#@@@DTG%^&&+_)+(*^%!HHI"), true, WDT_TXTDATA);
