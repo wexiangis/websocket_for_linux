@@ -12,7 +12,7 @@
 #include <netinet/ip.h>
 #include <pthread.h>    // 使用多线程
 
-#define		EPOLL_RESPOND_NUM		100		// epoll同时响应事件数量
+#define		EPOLL_RESPOND_NUM		10000	// epoll最大同时管理句柄数量
 
 typedef int (*CallBackFun)(int fd, char *buf, unsigned int bufLen);
 
@@ -22,8 +22,8 @@ typedef struct{
     char ip[24];
     int port;
     char buf[10240];
-    CallBackFun action;
-}Websocket_Server;
+    CallBackFun callBack;
+}WebSocket_Server;
 
 //////////////////////////////////////////////////////////// Tool Function ///////////////////////////////////////////////////////////////////////////////
 
@@ -57,15 +57,7 @@ int arrayRemoveItem(int array[][2], int arraySize, int value)
     return -1;
 }
 
-//////////////////////////////////////////////////////////// Call Back Function ///////////////////////////////////////////////////////////////////////////////
-
-int call(CallBackFun function, int fd, char *buf, unsigned int bufLen)
-{
-    return function(fd, buf, bufLen);
-}
-
-//////////////////////////////////////////////////////////// Server Function ///////////////////////////////////////////////////////////////////////////////
-
+// Server Function
 void server_thread_fun(void *arge)
 {
 	int ret , i , j;
@@ -74,39 +66,39 @@ void server_thread_fun(void *arge)
 	struct sockaddr_in acceptAddr;
 	struct sockaddr_in serverAddr;
 	//
-	Websocket_Server *ws = (Websocket_Server *)arge;
+	WebSocket_Server *wss = (WebSocket_Server *)arge;
 	//
 	memset(&serverAddr , 0 , sizeof(serverAddr)); 			// 数据初始化--清零     
     serverAddr.sin_family = AF_INET; 									// 设置为IP通信     
-    //serverAddr.sin_addr.s_addr = inet_addr(ws->ip);		// 服务器IP地址
+    //serverAddr.sin_addr.s_addr = inet_addr(wss->ip);		// 服务器IP地址
     serverAddr.sin_addr.s_addr = INADDR_ANY;		// 服务器IP地址
-    serverAddr.sin_port = htons(ws->port); 						// 服务器端口号    
+    serverAddr.sin_port = htons(wss->port); 						// 服务器端口号    
 	//
 	socAddrLen = sizeof(struct sockaddr_in);
 	
 	//------------------------------------------------------------------------------ socket init
 	//socket init
-	ws->fd = socket(AF_INET, SOCK_STREAM,0);  
-    if(ws->fd <= 0)  
+	wss->fd = socket(AF_INET, SOCK_STREAM,0);  
+    if(wss->fd <= 0)  
     {  
         printf("server cannot create socket !\r\n"); 
         exit(1);
     }    
     
     //设置为非阻塞接收
-    ret = fcntl(ws->fd , F_GETFL , 0);
-    fcntl(ws->fd , F_SETFL , ret | O_NONBLOCK);
+    ret = fcntl(wss->fd , F_GETFL , 0);
+    fcntl(wss->fd , F_SETFL , ret | O_NONBLOCK);
     
     //bind sockfd & addr  
-    while(bind(ws->fd, (struct sockaddr *)&serverAddr, sizeof(struct sockaddr)) < 0 )
+    while(bind(wss->fd, (struct sockaddr *)&serverAddr, sizeof(struct sockaddr)) < 0 )
         webSocket_delayms(1);
     
     //listen sockfd   
-    ret = listen(ws->fd, 0);  
+    ret = listen(wss->fd, 0);  
     if(ret < 0) 
     {  
         printf("server cannot listen request\r\n"); 
-        close(ws->fd); 
+        close(wss->fd); 
         exit(1);
     } 
     //------------------------------------------------------------------------------ epoll init
@@ -123,11 +115,11 @@ void server_thread_fun(void *arge)
     struct epoll_event ev;            // epoll事件结构体  
     struct epoll_event events[EPOLL_RESPOND_NUM];
     ev.events = EPOLLIN|EPOLLET;  			// 	EPOLLIN		EPOLLET;    监听事件类型
-    ev.data.fd = ws->fd;  
+    ev.data.fd = wss->fd;  
     // 向epoll注册server_sockfd监听事件  
-    if(epoll_ctl(epoll_fd , EPOLL_CTL_ADD , ws->fd , &ev) < 0)
+    if(epoll_ctl(epoll_fd , EPOLL_CTL_ADD , wss->fd , &ev) < 0)
     {  
-        printf("server epll_ctl : ws->fd register failed\r\n"); 
+        printf("server epll_ctl : wss->fd register failed\r\n"); 
         close(epoll_fd);
         exit(1);
     }  
@@ -162,14 +154,14 @@ void server_thread_fun(void *arge)
 				        close(epoll_fd);
 				        exit(1);
 				    }
-				    arrayRemoveItem(ws->client_fd_array, EPOLL_RESPOND_NUM, events[j].data.fd);    // 从数组剔除fd
+				    arrayRemoveItem(wss->client_fd_array, EPOLL_RESPOND_NUM, events[j].data.fd);    // 从数组剔除fd
 					close(events[j].data.fd);	//关闭通道
             }
         	//===================新通道接入事件===================
-        	else if(events[j].data.fd == ws->fd)
+        	else if(events[j].data.fd == wss->fd)
         	{		
 				//轮巡可能接入的新通道 并把通道号记录在accept_fd[]数组中
-				accept_fd = accept(ws->fd, (struct sockaddr *)&acceptAddr, &socAddrLen);  
+				accept_fd = accept(wss->fd, (struct sockaddr *)&acceptAddr, &socAddrLen);  
 				if(accept_fd >= 0)  //----------有新接入，通道号加1----------
 				{ 	
 					// 向epoll注册client_sockfd监听事件  
@@ -183,15 +175,14 @@ void server_thread_fun(void *arge)
 					}
 					//send(accept_fd , "OK\r\n" , 4 , MSG_NOSIGNAL);
 					printf("server fd/%d : accept\r\n", accept_fd);
-					arrayAddItem(ws->client_fd_array, EPOLL_RESPOND_NUM, accept_fd);    // 添加fd到数组
+					arrayAddItem(wss->client_fd_array, EPOLL_RESPOND_NUM, accept_fd);    // 添加fd到数组
 				}
 			}
 			//===================接收数据事件===================
 			else if(events[j].events & EPOLLIN)
 			{		
-				//ret = recv(events[j].data.fd , ws->buf , sizeof(ws->buf) ,  MSG_NOSIGNAL); 			//  MSG_NOSIGNAL(非阻塞)  MSG_DONTWAIT  MSG_WAITALL
-				memset(ws->buf, 0, sizeof(ws->buf));
-				ret = call(ws->action, events[j].data.fd , ws->buf , sizeof(ws->buf));
+				memset(wss->buf, 0, sizeof(wss->buf));
+				ret = wss->callBack(events[j].data.fd , wss->buf , sizeof(wss->buf));
 				if(ret <= 0)		//----------ret<=0时检查异常, 决定是否主动解除连接----------
 				{
 				    if(errno == EAGAIN || errno == EINTR)
@@ -208,7 +199,7 @@ void server_thread_fun(void *arge)
 				            close(epoll_fd);
 				            exit(1);
 				        }
-				        arrayRemoveItem(ws->client_fd_array, EPOLL_RESPOND_NUM, events[j].data.fd);    // 从数组剔除fd
+				        arrayRemoveItem(wss->client_fd_array, EPOLL_RESPOND_NUM, events[j].data.fd);    // 从数组剔除fd
 					    close(events[j].data.fd);	//关闭通道
 					}
 				}
@@ -222,27 +213,25 @@ void server_thread_fun(void *arge)
 	//关闭epoll句柄
     close(epoll_fd);
     //关闭socket
-    close(ws->fd); 
+    close(wss->fd); 
     //退出线程
     pthread_exit(NULL); 
 }
-//////////////////////////////////////////////////////////// Call Back Function ///////////////////////////////////////////////////////////////////////////////
 
-int server_action(int fd, char *buf, unsigned int bufLen)
+//
+int server_callBack(int fd, char *buf, unsigned int bufLen)
 {
     int ret;
     ret = webSocket_recv(fd , buf , bufLen);    // 使用websocket recv
     if(ret > 0)
 	{
-		printf("server fd/%d : len/%d %s\r\n", fd, ret, buf);
+		printf("server(fd/%d) recv: %s\r\n", fd, buf);
 		
 		//===== 在这里根据客户端的请求内容, 提供相应的服务 =====
-		if(strstr(buf, "connect") != NULL)     // 成功连上之后, 发个测试数据
-		    ret = webSocket_send(fd, "Hello !", strlen("Hello !"), false, WDT_TXTDATA);
-		else if(strstr(buf, "Hello") != NULL)
-		    ret = webSocket_send(fd, "I am Server_Test", strlen("I am Server_Test"), false, WDT_TXTDATA);
+		if(strstr(buf, "hi~") != NULL)
+		    ret = webSocket_send(fd, "Hi~ I am server", strlen("Hi~ I am server"), false, WDT_TXTDATA);
 		else
-		    ret = webSocket_send(fd, "You are carefree ...", strlen("You are carefree ..."), false, WDT_TXTDATA);
+            ;
 		// ... ...
 		// ...
 	}
@@ -254,48 +243,49 @@ int server_action(int fd, char *buf, unsigned int bufLen)
 	return ret;
 }
 
-//////////////////////////////////////////////////////////// Main Function ///////////////////////////////////////////////////////////////////////////////
 
 int main(void)
 {
-    int ret;
+    int exitFlag;
     int i, client_fd;
     pthread_t sever_thread_id;
-    Websocket_Server ws;
+    WebSocket_Server wss;
     
     //===== 初始化服务器参数 =====
-    memset(&ws, 0, sizeof(ws));
-    //strcpy(ws.ip, "127.0.0.1");     
-    ws.port = 9999;
-    ws.action = &server_action;     // 响应客户端时, 需要干嘛?
+    memset(&wss, 0, sizeof(wss));
+    //strcpy(wss.ip, "127.0.0.1");     
+    wss.port = 9999;
+    wss.callBack = &server_callBack; // 响应客户端时, 需要干嘛?
     
     //===== 开辟线程, 管理服务器 =====
-    ret = pthread_create(&sever_thread_id, NULL, (void*)&server_thread_fun, (void *)(&ws));  // 传递参数到线程
-	if(ret != 0)
+    if(pthread_create(&sever_thread_id, NULL, (void*)&server_thread_fun, (void *)(&wss)) != 0)
 	{
 		printf("create server false !\r\n");
 		exit(1);
 	} 
-	
-	while(1)
+	//
+    exitFlag = 0;
+	while(!exitFlag)
 	{
+        // 每3秒推送信息给所有客户端
 	    for(i = 0; i < EPOLL_RESPOND_NUM; i++)
 	    {
-	        if(ws.client_fd_array[i][1] != 0 && ws.client_fd_array[i][0] > 0)
+	        if(wss.client_fd_array[i][1] != 0 && wss.client_fd_array[i][0] > 0)
 	        {
-	            client_fd = ws.client_fd_array[i][0];
-	            /////////////////////////////////////////////////////////////////////////////////////////////   服务器可以在这里对所有已连入的客户端 推送点垃圾广告
-	            
-	            ret = webSocket_send(client_fd, "\\O^O/  <-.<-  TAT  =.=#  -.-! ...", strlen("\\O^O/  <-.<-  TAT  =.=#  -.-! ..."), false, WDT_TXTDATA);
-	            
-	            /////////////////////////////////////////////////////////////////////////////////////////////
+	            client_fd = wss.client_fd_array[i][0];
+	            if(webSocket_send(client_fd, "======== 这是推送 ========", strlen("======== 这是推送 ========"), false, WDT_TXTDATA) < 0)
+                {
+                    printf("server webSocket_send err !!\r\n");
+                    exitFlag = 1;
+                    break;
+                }
 	        }
 	    }
-	    webSocket_delayms(5000);
+	    webSocket_delayms(3000);
 	}
 	
 	//==============================
-    pthread_join(sever_thread_id, NULL);     // 等待线程关闭
+    pthread_cancel(sever_thread_id);     // 等待线程关闭
     printf("server close !\r\n");
     return 0;
 }

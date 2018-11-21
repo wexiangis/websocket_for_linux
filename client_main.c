@@ -5,12 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <sys/epoll.h>  // epoll管理服务器的连接和接收触发
-#include <sys/socket.h>
-#include <netinet/ip.h>
-#include <pthread.h>    // 使用多线程
+#include <unistd.h> //getpid
 
 char ip[24] = {0};//"172.16.23.160";// 本机IP
 int port = 9999;
@@ -19,7 +14,11 @@ int main(void)
 {
     int ret, timeCount = 0;
     int fd;
-    char buf[10240];
+    char buff[10240];
+    int pid;
+    //
+    pid = getpid();
+    printf("\r\n========== client(%d) start ! ==========\r\n\r\n", pid);
     //
     netCheck_getIP("eth0", ip);
     if((fd = webSocket_clientLinkToServer(ip, port, "/null")) <= 0)
@@ -27,28 +26,35 @@ int main(void)
         printf("client link to server failed !\r\n");
         return -1;
     }
+    webSocket_delayms(100);
     //
-    sleep(1);
-    //
-    ret = webSocket_send(fd, "Hello !", strlen("Hello !"), true, WDT_TXTDATA);
-    //
-    printf("\r\n\r\n========== client start ! ==========\r\n\r\n");
+    memset(buff, 0, sizeof(buff));
+    sprintf(buff, "Say hi~ from client(%d)", pid);
+    webSocket_send(fd, buff, strlen(buff), true, WDT_TXTDATA);
     //
     while(1)
     {
-        memset(buf, 0, sizeof(buf));
-        ret = webSocket_recv(fd, buf, sizeof(buf));
+        //
+        memset(buff, 0, sizeof(buff));
+        ret = webSocket_recv(fd, buff, sizeof(buff));
         if(ret > 0)
         {
-            printf("client recv : len/%d %s\r\n", ret, buf);
-            if(strstr(buf, "Hello") != NULL)
-                ret = webSocket_send(fd, "I am Client_Test", strlen("I am Client_Test"), true, WDT_TXTDATA);
-            else if(strstr(buf, "Server_Test") != NULL)
-                ret = webSocket_send(fd, "I am free now !", strlen("I am free now !"), true, WDT_TXTDATA);
+            //===== 与服务器的应答 =====
+            printf("client(%d) recv : %s\r\n", pid, buff);
+            //
+            if(strstr(buff, "Hi~") != NULL)
+            {
+                memset(buff, 0, sizeof(buff));
+                sprintf(buff, "I am client(%d)", pid);
+                ret = webSocket_send(fd, buff, strlen(buff), true, WDT_TXTDATA);
+            }
             else
                 ;
-            //
-            if(ret <= 0)    // send返回负数, 连接已断开
+            // ......
+            // ...
+            
+            // send返回异常, 连接已断开
+            if(ret <= 0)
             {
                 close(fd);
                 break;
@@ -64,20 +70,26 @@ int main(void)
                 break;
             }
         }
-        //
-        webSocket_delayms(10);
-        timeCount += 10;
-        //
-        if(timeCount >= 4000)   //  每4s 客户端可以在这里定时骚扰一下服务器
+        
+        //===== 3s客户端心跳 =====
+        if(timeCount > 3000)   
         {
-            timeCount = 0;
-            ret = webSocket_send(fd, "#%^#@@@DTG%^&&+_)+(*^%!HHI", strlen("#%^#@@@DTG%^&&+_)+(*^%!HHI"), true, WDT_TXTDATA);
+            timeCount = 10;
+            //
+            memset(buff, 0, sizeof(buff));
+            sprintf(buff, "heart from client(%d)", pid);
+            ret = webSocket_send(fd, buff, strlen(buff), true, WDT_TXTDATA);
             if(ret <= 0)
             {
                 close(fd);
                 break;
             }
-         }
+        }
+        else
+            timeCount += 10;
+
+        //
+        webSocket_delayms(10);
     }
     printf("client close !\r\n");
     return 0;
