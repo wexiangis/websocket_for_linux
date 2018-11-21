@@ -88,7 +88,7 @@ void server_thread_fun(void *arge)
     
     //bind sockfd & addr  
     while(bind(ws->fd, (struct sockaddr *)&serverAddr, sizeof(struct sockaddr)) < 0 )
-        delayms(1);
+        webSocket_delayms(1);
     
     //listen sockfd   
     ret = listen(ws->fd, 0);  
@@ -276,7 +276,7 @@ int main(void)
 	            /////////////////////////////////////////////////////////////////////////////////////////////
 	        }
 	    }
-	    delayms(5000);
+	    webSocket_delayms(5000);
 	}
 	
 	//==============================

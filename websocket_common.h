@@ -36,7 +36,7 @@ int webSocket_serverLinkToClient(int fd, char *recvBuf, unsigned int bufLen);
 int webSocket_send(int fd, unsigned char *data, unsigned int dataLen, bool mod, Websocket_CommunicationType type);
 int webSocket_recv(int fd, unsigned char *data, unsigned int dataMaxLen);
 
-void delayms(unsigned int ms);
+void webSocket_delayms(unsigned int ms);
 
 #endif
 

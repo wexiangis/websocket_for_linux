@@ -847,7 +847,7 @@ int webSocket_clientLinkToServer(char *ip, int port, char *interface_path)
 			close(fd); 
 		    return -timeOut;  
 		}
-		delayms(1);  //1ms 
+		webSocket_delayms(1);  //1ms 
 	}
 	
 	//发送http协议头
@@ -908,7 +908,7 @@ int webSocket_clientLinkToServer(char *ip, int port, char *interface_path)
 		    close(fd); 
 		    return -timeOut;
 		}
-		delayms(1);  //1ms
+		webSocket_delayms(1);  //1ms
 	}
     //
 	close(fd); 
@@ -1064,12 +1064,12 @@ int webSocket_recv(int fd, unsigned char *data, unsigned int dataMaxLen)
     }
 }
 
-void delayms(unsigned int ms)
+//==================== delay ms ====================
+void webSocket_delayms(unsigned int ms)
 {
     struct timeval tim;
     tim.tv_sec = ms/1000;
     tim.tv_usec = (ms%1000)*1000;
     select(0, NULL, NULL, NULL, &tim);
 }
-
 
