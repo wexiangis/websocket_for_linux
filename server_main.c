@@ -25,8 +25,7 @@ typedef struct{
     CallBackFun callBack;
 }WebSocket_Server;
 
-//////////////////////////////////////////////////////////// Tool Function ///////////////////////////////////////////////////////////////////////////////
-
+// Tool Function
 int arrayAddItem(int array[][2], int arraySize, int value)
 {
     int i;
@@ -68,11 +67,11 @@ void server_thread_fun(void *arge)
 	//
 	WebSocket_Server *wss = (WebSocket_Server *)arge;
 	//
-	memset(&serverAddr , 0 , sizeof(serverAddr)); 			// 数据初始化--清零     
-    serverAddr.sin_family = AF_INET; 									// 设置为IP通信     
-    //serverAddr.sin_addr.s_addr = inet_addr(wss->ip);		// 服务器IP地址
+	memset(&serverAddr , 0 , sizeof(serverAddr)); 	// 数据初始化--清零     
+    serverAddr.sin_family = AF_INET; 				// 设置为IP通信     
+    //serverAddr.sin_addr.s_addr = inet_addr(wss->ip);// 服务器IP地址
     serverAddr.sin_addr.s_addr = INADDR_ANY;		// 服务器IP地址
-    serverAddr.sin_port = htons(wss->port); 						// 服务器端口号    
+    serverAddr.sin_port = htons(wss->port); 		// 服务器端口号    
 	//
 	socAddrLen = sizeof(struct sockaddr_in);
 	
@@ -111,10 +110,10 @@ void server_thread_fun(void *arge)
         exit(1);
     }  
     
-    int nfds;                                  // epoll监听事件发生的个数  
-    struct epoll_event ev;            // epoll事件结构体  
+    int nfds;                     // epoll监听事件发生的个数  
+    struct epoll_event ev;        // epoll事件结构体  
     struct epoll_event events[EPOLL_RESPOND_NUM];
-    ev.events = EPOLLIN|EPOLLET;  			// 	EPOLLIN		EPOLLET;    监听事件类型
+    ev.events = EPOLLIN|EPOLLET;  // 	EPOLLIN		EPOLLET;    监听事件类型
     ev.data.fd = wss->fd;  
     // 向epoll注册server_sockfd监听事件  
     if(epoll_ctl(epoll_fd , EPOLL_CTL_ADD , wss->fd , &ev) < 0)

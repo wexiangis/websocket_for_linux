@@ -817,10 +817,10 @@ int webSocket_enPackage(unsigned char *data, unsigned int dataLen, unsigned char
  * 名称: webSocket_dePackage
  * 功能: websocket数据收发阶段的数据解包, 通常client发server的数据都要isMask(掩码)处理, 反之server到client却不用
  * 形参: *data：解包的数据
- *          dataLen : 长度
- *        *package : 解包后存储地址
- *        packageMaxLen : 存储地址可用长度
- *        *packageLen : 解包所得长度
+ *      dataLen : 长度
+ *      *package : 解包后存储地址
+ *      packageMaxLen : 存储地址可用长度
+ *      *packageLen : 解包所得长度
  * 返回: 解包识别的数据类型 如 : txt数据, bin数据, ping, pong等
  * 说明: 无
  ******************************************************************************/
@@ -1190,7 +1190,7 @@ int webSocket_recv(int fd, char *data, int dataMaxLen)
         //---------- websocket数据解包 ----------
         webSocketPackage = (unsigned char *)calloc(ret + 128, sizeof(char));
         ret2 = webSocket_dePackage(recvBuf, ret, webSocketPackage, (ret + 128), (unsigned int *)&retLen, (unsigned int *)&retHeadLen);
-        if(ret2 == WDT_ERR) //非包数据
+        if(ret2 == WDT_ERR && retLen == 0) //非包数据
         {
             memset(data, 0, dataMaxLen);
             if(ret < dataMaxLen)
