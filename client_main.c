@@ -2,7 +2,7 @@
 #include "websocket_common.h"
 
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdlib.h> //exit()
 #include <string.h>
 #include <errno.h>
 #include <unistd.h> //getpid

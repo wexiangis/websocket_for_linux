@@ -2,10 +2,10 @@
 #include "websocket_common.h"
 
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdlib.h>     //exit()
 #include <string.h>
 #include <errno.h>
-#include <fcntl.h>
+#include <fcntl.h>      // 非阻塞宏
 #include <sys/ioctl.h>
 #include <sys/epoll.h>  // epoll管理服务器的连接和接收触发
 #include <sys/socket.h>
@@ -208,14 +208,11 @@ void server_thread_fun(void *arge)
 			else if(events[j].events & EPOLLOUT)
 			    ;
 		}
-    }  
-    
+    }
 	//关闭epoll句柄
     close(epoll_fd);
     //关闭socket
-    close(wss->fd); 
-    //退出线程
-    pthread_exit(NULL); 
+    close(wss->fd);
 }
 
 //
