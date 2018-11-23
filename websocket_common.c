@@ -1105,7 +1105,7 @@ int webSocket_clientLinkToServer(char *ip, int port, char *interface_path)
  * 形参: fd：连接句柄
  *      *recvBuf : 接收到来自客户端的数据(内含http连接请求)
  *      bufLen : 
- * 返回: =0 建立websocket连接成功 <0 建立websocket连接失败
+ * 返回: >0 建立websocket连接成功 <=0 建立websocket连接失败
  * 说明: 无
  ******************************************************************************/
 int webSocket_serverLinkToClient(int fd, char *recvBuf, int bufLen)
