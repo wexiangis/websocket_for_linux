@@ -1134,12 +1134,12 @@ int webSocket_serverLinkToClient(int fd, char *recvBuf, int bufLen)
  * 形参: fd：连接句柄
  *          *data : 数据
  *          dataLen : 长度
- *          mod : 数据是否使用掩码, 客户端到服务器必须使用掩码模式
+ *          isMask : 数据是否使用掩码, 客户端到服务器必须使用掩码模式
  *          type : 数据要要以什么识别头类型发送(txt, bin, ping, pong ...)
  * 返回: 调用send的返回
  * 说明: 无
  ******************************************************************************/
-int webSocket_send(int fd, char *data, int dataLen, bool mod, WebsocketData_Type type)
+int webSocket_send(int fd, char *data, int dataLen, bool isMask, WebsocketData_Type type)
 {
     unsigned char *webSocketPackage = NULL;
     int retLen, ret;
@@ -1149,7 +1149,7 @@ int webSocket_send(int fd, char *data, int dataLen, bool mod, WebsocketData_Type
 #endif
     //---------- websocket数据打包 ----------
     webSocketPackage = (unsigned char *)calloc(dataLen + 128, sizeof(char));
-    retLen = webSocket_enPackage((unsigned char *)data, dataLen, webSocketPackage, (dataLen + 128), mod, type);
+    retLen = webSocket_enPackage((unsigned char *)data, dataLen, webSocketPackage, (dataLen + 128), isMask, type);
     //显示数据
 #ifdef WEBSOCKET_DEBUG
     printf("webSocket_send : %d\r\n" , retLen);
@@ -1171,10 +1171,10 @@ int webSocket_send(int fd, char *data, int dataLen, bool mod, WebsocketData_Type
  * 返回: = 0 没有收到有效数据 > 0 成功接收并解包数据 < 0 非包数据的长度
  * 说明: 无
  ******************************************************************************/
-int webSocket_recv(int fd, char *data, int dataMaxLen)
+int webSocket_recv(int fd, char *data, int dataMaxLen, int *dataType)
 {
     unsigned char *webSocketPackage = NULL, *recvBuf = NULL;
-    int ret, ret2 = 0, retTemp, retFinal = WDT_NULL;
+    int ret, dpRet = WDT_NULL, retTemp, retFinal = 0;
     int retLen = 0, retHeadLen = 0;
     //
     int timeOut = 0;    //续传时,等待下一包需加时间限制
@@ -1189,8 +1189,8 @@ int webSocket_recv(int fd, char *data, int dataMaxLen)
     {
         //---------- websocket数据解包 ----------
         webSocketPackage = (unsigned char *)calloc(ret + 128, sizeof(char));
-        ret2 = webSocket_dePackage(recvBuf, ret, webSocketPackage, (ret + 128), (unsigned int *)&retLen, (unsigned int *)&retHeadLen);
-        if(ret2 == WDT_ERR && retLen == 0) //非包数据
+        dpRet = webSocket_dePackage(recvBuf, ret, webSocketPackage, (ret + 128), (unsigned int *)&retLen, (unsigned int *)&retHeadLen);
+        if(dpRet == WDT_ERR && retLen == 0) //非包数据
         {
             memset(data, 0, dataMaxLen);
             if(ret < dataMaxLen)
@@ -1215,8 +1215,8 @@ int webSocket_recv(int fd, char *data, int dataMaxLen)
             //显示数据包的头10个字节
 #ifdef WEBSOCKET_DEBUG
             if(ret > 10)
-                printf("webSocket_recv : ret/%d, ret2/%d, retLen/%d, head/%d : %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n", 
-                    ret, ret2, retLen, retHeadLen, 
+                printf("webSocket_recv : ret/%d, dpRet/%d, retLen/%d, head/%d : %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n", 
+                    ret, dpRet, retLen, retHeadLen, 
                     recvBuf[0], recvBuf[1], recvBuf[2], recvBuf[3], recvBuf[4], 
                     recvBuf[5], recvBuf[6], recvBuf[7], recvBuf[8], recvBuf[9]);
 #endif
@@ -1242,37 +1242,44 @@ int webSocket_recv(int fd, char *data, int dataMaxLen)
                 //再解包一次
                 free(webSocketPackage);
                 webSocketPackage = (unsigned char *)calloc(ret + 128, sizeof(char));
-                ret2 = webSocket_dePackage(recvBuf, ret, webSocketPackage, (ret + 128), (unsigned int *)&retLen, (unsigned int *)&retHeadLen);
+                dpRet = webSocket_dePackage(recvBuf, ret, webSocketPackage, (ret + 128), (unsigned int *)&retLen, (unsigned int *)&retHeadLen);
+                //
                 if(ret > 10)
-                    printf("webSocket_recv : ret/%d, ret2/%d, retLen/%d, head/%d : %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n", 
-                        ret, ret2, retLen, retHeadLen, 
+                    printf("webSocket_recv : ret/%d, dpRet/%d, retLen/%d, head/%d : %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n", 
+                        ret, dpRet, retLen, retHeadLen, 
                         recvBuf[0], recvBuf[1], recvBuf[2], recvBuf[3], recvBuf[4], 
                         recvBuf[5], recvBuf[6], recvBuf[7], recvBuf[8], recvBuf[9]);
             }
             //
-            if(ret2 == WDT_PING && retLen > 0)
+            if(retLen > 0)
             {
-                webSocket_send(fd, (char *)webSocketPackage, retLen, true, WDT_PONG);
-                // 显示数据
-                printf("webSocket_recv : PING %d\r\n%s\r\n" , retLen, webSocketPackage); 
-                goto recv_return_null;
-            }
-            else if(retLen > 0 && (ret2 == WDT_TXTDATA || ret2 == WDT_BINDATA || ret2 == WDT_MINDATA))
-            {
-                memcpy(data, webSocketPackage, retLen);
-                // 显示数据
-#ifdef WEBSOCKET_DEBUG
-                if(webSocketPackage[0] >= ' ' && webSocketPackage[0] <= '~')
-                    printf("\r\nwebSocket_recv : New Package StrFile ret2:%d/retLen:%d\r\n%s\r\n" , ret2, retLen, webSocketPackage); 
-                else
+                if(dpRet == WDT_PING)
                 {
-                    printf("\r\nwebSocket_recv : New Package BinFile ret2:%d/retLen:%d\r\n" , ret2, retLen); 
-                    int i;
-                    for(i = 0; i < retLen; i++) 
-                        printf("%.2X ", webSocketPackage[i]); 
-                    printf("\r\n");
+                    webSocket_send(fd, (char *)webSocketPackage, retLen, true, WDT_PONG);//自动 ping-pong
+                    // 显示数据
+                    printf("webSocket_recv : PING %d\r\n%s\r\n" , retLen, webSocketPackage);
                 }
+                else if(dpRet == WDT_PONG)
+                {
+                    printf("webSocket_recv : PONG %d\r\n%s\r\n" , retLen, webSocketPackage);
+                }
+                else //if(dpRet == WDT_TXTDATA || dpRet == WDT_BINDATA || dpRet == WDT_MINDATA)
+                {
+                    memcpy(data, webSocketPackage, retLen);
+                    // 显示数据
+#ifdef WEBSOCKET_DEBUG
+                    if(webSocketPackage[0] >= ' ' && webSocketPackage[0] <= '~')
+                        printf("\r\nwebSocket_recv : New Package StrFile dpRet:%d/retLen:%d\r\n%s\r\n" , dpRet, retLen, webSocketPackage); 
+                    else
+                    {
+                        printf("\r\nwebSocket_recv : New Package BinFile dpRet:%d/retLen:%d\r\n" , dpRet, retLen); 
+                        int i;
+                        for(i = 0; i < retLen; i++) 
+                            printf("%.2X ", webSocketPackage[i]); 
+                        printf("\r\n");
+                    }
 #endif
+                }
                 //
                 retFinal = retLen;
             }
@@ -1281,10 +1288,10 @@ int webSocket_recv(int fd, char *data, int dataMaxLen)
             {
                 // 显示数据
                 if(recvBuf[0] >= ' ' && recvBuf[0] <= '~') 
-                    printf("\r\nwebSocket_recv : ret:%d/ret2:%d/retLen:%d\r\n%s\r\n" , ret, ret2, retLen, recvBuf); 
+                    printf("\r\nwebSocket_recv : ret:%d/dpRet:%d/retLen:%d\r\n%s\r\n" , ret, dpRet, retLen, recvBuf); 
                 else 
                 {
-                    printf("\r\nwebSocket_recv : ret:%d/ret2:%d/retLen:%d\r\n%s\r\n" , ret, ret2, retLen, recvBuf); 
+                    printf("\r\nwebSocket_recv : ret:%d/dpRet:%d/retLen:%d\r\n%s\r\n" , ret, dpRet, retLen, recvBuf); 
                     int i;
                     for(i = 0; i < ret; i++) 
                         printf("%.2X ", recvBuf[i]); 
@@ -1295,17 +1302,15 @@ int webSocket_recv(int fd, char *data, int dataMaxLen)
         }
     }
 
-    if(recvBuf)
-       free(recvBuf);
-    if(webSocketPackage)
-        free(webSocketPackage);
+    if(recvBuf) free(recvBuf);
+    if(webSocketPackage) free(webSocketPackage);
+    if(dataType) *dataType = dpRet;
     return retFinal;
 
 recv_return_null:
 
-    if(recvBuf)
-       free(recvBuf);
-    if(webSocketPackage)
-        free(webSocketPackage);
-    return WDT_NULL;
+    if(recvBuf) free(recvBuf);
+    if(webSocketPackage) free(webSocketPackage);
+    if(dataType) *dataType = dpRet;
+    return 0;
 }

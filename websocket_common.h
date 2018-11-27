@@ -21,8 +21,8 @@ typedef enum{
 int webSocket_clientLinkToServer(char *ip, int port, char *interface_path);
 int webSocket_serverLinkToClient(int fd, char *recvBuf, int bufLen);
 
-int webSocket_send(int fd, char *data, int dataLen, bool mod, WebsocketData_Type type);
-int webSocket_recv(int fd, char *data, int dataMaxLen);
+int webSocket_send(int fd, char *data, int dataLen, bool isMask, WebsocketData_Type type);
+int webSocket_recv(int fd, char *data, int dataMaxLen, int *dataType);
 
 void webSocket_delayms(unsigned int ms);
 

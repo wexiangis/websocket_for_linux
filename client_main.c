@@ -36,7 +36,7 @@ int main(void)
     {
         //
         memset(buff, 0, sizeof(buff));
-        ret = webSocket_recv(fd, buff, sizeof(buff));
+        ret = webSocket_recv(fd, buff, sizeof(buff), NULL);
         if(ret > 0)
         {
             //===== 与服务器的应答 =====
@@ -77,8 +77,13 @@ int main(void)
             timeCount = 10;
             //
             memset(buff, 0, sizeof(buff));
-            sprintf(buff, "heart from client(%d)", pid);
-            ret = webSocket_send(fd, buff, strlen(buff), true, WDT_TXTDATA);
+
+            // sprintf(buff, "heart from client(%d)", pid);
+            // ret = webSocket_send(fd, buff, strlen(buff), true, WDT_TXTDATA);
+
+            strcpy(buff, "123");//即使ping包也要带点数据
+            ret = webSocket_send(fd, buff, strlen(buff), true, WDT_PING); //使用ping包代替心跳
+
             if(ret <= 0)
             {
                 close(fd);

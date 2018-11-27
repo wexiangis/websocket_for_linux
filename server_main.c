@@ -218,7 +218,7 @@ void server_thread_fun(void *arge)
 int server_callBack(int fd, char *buf, unsigned int bufLen)
 {
     int ret;
-    ret = webSocket_recv(fd , buf , bufLen);    // 使用websocket recv
+    ret = webSocket_recv(fd , buf , bufLen, NULL);    // 使用websocket recv
     if(ret > 0)
 	{
 		printf("server(fd/%d) recv: %s\r\n", fd, buf);
