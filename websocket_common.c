@@ -1171,7 +1171,7 @@ int webSocket_send(int fd, char *data, int dataLen, bool isMask, WebsocketData_T
  * 返回: = 0 没有收到有效数据 > 0 成功接收并解包数据 < 0 非包数据的长度
  * 说明: 无
  ******************************************************************************/
-int webSocket_recv(int fd, char *data, int dataMaxLen, int *dataType)
+int webSocket_recv(int fd, char *data, int dataMaxLen, WebsocketData_Type *dataType)
 {
     unsigned char *webSocketPackage = NULL, *recvBuf = NULL;
     int ret, dpRet = WDT_NULL, retTemp, retFinal = 0;
