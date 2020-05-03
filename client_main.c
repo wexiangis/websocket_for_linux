@@ -7,7 +7,7 @@
 #include <errno.h>
 #include <unistd.h> //getpid
 
-char ip[24] = {0};//"172.16.23.160";// 本机IP
+char ip[24] = {0}; //"172.16.23.160";// 本机IP
 int port = 9999;
 
 int main(void)
@@ -21,7 +21,7 @@ int main(void)
     printf("\r\n========== client(%d) start ! ==========\r\n\r\n", pid);
     //
     netCheck_getIP("eth0", ip);
-    if((fd = webSocket_clientLinkToServer(ip, port, "/null")) <= 0)
+    if ((fd = webSocket_clientLinkToServer(ip, port, "/null")) <= 0)
     {
         printf("client link to server failed !\r\n");
         return -1;
@@ -32,17 +32,17 @@ int main(void)
     sprintf(buff, "Say hi~ from client(%d)", pid);
     webSocket_send(fd, buff, strlen(buff), true, WDT_TXTDATA);
     //
-    while(1)
+    while (1)
     {
         //
         memset(buff, 0, sizeof(buff));
         ret = webSocket_recv(fd, buff, sizeof(buff), NULL);
-        if(ret > 0)
+        if (ret > 0)
         {
             //===== 与服务器的应答 =====
             printf("client(%d) recv : %s\r\n", pid, buff);
             //
-            if(strstr(buff, "Hi~") != NULL)
+            if (strstr(buff, "Hi~") != NULL)
             {
                 memset(buff, 0, sizeof(buff));
                 sprintf(buff, "I am client(%d)", pid);
@@ -52,27 +52,29 @@ int main(void)
                 ;
             // ......
             // ...
-            
+
             // send返回异常, 连接已断开
-            if(ret <= 0)
+            if (ret <= 0)
             {
+                printf("send ret/%d error\r\n", ret);
                 close(fd);
                 break;
             }
         }
-        else    // 检查错误, 是否连接已断开
+        else // 检查错误, 是否连接已断开
         {
-            if(errno == EAGAIN || errno == EINTR)
+            if (errno == EAGAIN || errno == EINTR)
                 ;
             else
             {
+                printf("check error %d\r\n", errno);
                 close(fd);
                 break;
             }
         }
-        
+
         //===== 3s客户端心跳 =====
-        if(timeCount > 3000)   
+        if (timeCount > 3000)
         {
             timeCount = 10;
             //
@@ -81,10 +83,10 @@ int main(void)
             // sprintf(buff, "heart from client(%d)", pid);
             // ret = webSocket_send(fd, buff, strlen(buff), true, WDT_TXTDATA);
 
-            strcpy(buff, "123");//即使ping包也要带点数据
+            strcpy(buff, "123");                                          //即使ping包也要带点数据
             ret = webSocket_send(fd, buff, strlen(buff), true, WDT_PING); //使用ping包代替心跳
 
-            if(ret <= 0)
+            if (ret <= 0)
             {
                 close(fd);
                 break;
@@ -99,4 +101,3 @@ int main(void)
     printf("client close !\r\n");
     return 0;
 }
-
