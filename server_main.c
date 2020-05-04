@@ -20,7 +20,7 @@ typedef struct WebSocketServer
     int client_fd_array[EPOLL_RESPOND_NUM][2];
     char ip[24];
     int port;
-    char buf[10240];
+    char buf[102400];
     int (*callBack)(struct WebSocketServer *wss, int fd, char *buf, unsigned int bufLen);
 } WebSocket_Server;
 

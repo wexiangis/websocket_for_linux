@@ -14,7 +14,7 @@ int main(void)
 {
     int ret, timeCount = 0;
     int fd;
-    char buff[10240];
+    char buff[102400];
     int pid;
     //
     pid = getpid();

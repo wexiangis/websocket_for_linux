@@ -3,11 +3,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>     // 使用 malloc, calloc等动态分配内存方法
-#include <time.h>       // 获取系统时间
+#include <string.h> // 使用 malloc, calloc等动态分配内存方法
+#include <time.h>   // 获取系统时间
 #include <errno.h>
-#include <fcntl.h>      // 非阻塞
-#include <sys/un.h> 
+#include <fcntl.h> // 非阻塞
+#include <sys/un.h>
 #include <arpa/inet.h>  // inet_addr()
 #include <unistd.h>     // close()
 #include <sys/types.h>  // 文件IO操作
@@ -15,30 +15,30 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
-#include <netdb.h>      // gethostbyname, gethostbyname2, gethostbyname_r, gethostbyname_r2
-#include <sys/un.h> 
+#include <netdb.h> // gethostbyname, gethostbyname2, gethostbyname_r, gethostbyname_r2
+#include <sys/un.h>
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <sys/ioctl.h>  // SIOCSIFADDR
+#include <sys/ioctl.h> // SIOCSIFADDR
 
 //==============================================================================================
 //======================================== 设置和工具部分 =======================================
 //==============================================================================================
 
 // 连接服务器
-#define WEBSOCKET_LOGIN_CONNECT_TIMEOUT  1000            // 登录连接超时设置 1000ms
-#define WEBSOCKET_LOGIN_RESPOND_TIMEOUT  (1000 + WEBSOCKET_LOGIN_CONNECT_TIMEOUT) // 登录等待回应超时设置 1000ms
+#define WEBSOCKET_LOGIN_CONNECT_TIMEOUT 1000                                     // 登录连接超时设置 1000ms
+#define WEBSOCKET_LOGIN_RESPOND_TIMEOUT (1000 + WEBSOCKET_LOGIN_CONNECT_TIMEOUT) // 登录等待回应超时设置 1000ms
 // 发收
 // 生成握手key的长度
-#define WEBSOCKET_SHAKE_KEY_LEN     16
+#define WEBSOCKET_SHAKE_KEY_LEN 16
 
 //==================== delay ms ====================
 void webSocket_delayms(unsigned int ms)
 {
     struct timeval tim;
-    tim.tv_sec = ms/1000;
-    tim.tv_usec = (ms%1000)*1000;
+    tim.tv_sec = ms / 1000;
+    tim.tv_usec = (ms % 1000) * 1000;
     select(0, NULL, NULL, NULL, &tim);
 }
 
@@ -51,8 +51,8 @@ int netCheck_setIP(char *devName, char *ip)
     int fd, ret;
     //
     strcpy(temp.ifr_name, devName);
-    if((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-      return -1;
+    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        return -1;
     //
     addr = (struct sockaddr_in *)&(temp.ifr_addr);
     addr->sin_family = AF_INET;
@@ -60,8 +60,8 @@ int netCheck_setIP(char *devName, char *ip)
     ret = ioctl(fd, SIOCSIFADDR, &temp);
     //
     close(fd);
-    if(ret < 0)
-       return -1;
+    if (ret < 0)
+        return -1;
     return 0;
 }
 
@@ -72,11 +72,11 @@ void netCheck_getIP(char *devName, char *ip)
     int fd, ret;
     //
     strcpy(temp.ifr_name, devName);
-    if((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         return;
     ret = ioctl(fd, SIOCGIFADDR, &temp);
     close(fd);
-    if(ret < 0)
+    if (ret < 0)
         return;
     //
     addr = (struct sockaddr_in *)&(temp.ifr_addr);
@@ -87,12 +87,13 @@ void netCheck_getIP(char *devName, char *ip)
 
 //==================== 域名转IP ====================
 
-typedef struct{
+typedef struct
+{
     pthread_t thread_id;
     char ip[256];
     bool result;
     bool actionEnd;
-}GetHostName_Struct;
+} GetHostName_Struct;
 //
 void *websocket_getHost_fun(void *arge)
 {
@@ -110,12 +111,12 @@ void *websocket_getHost_fun(void *arge)
         gs->actionEnd = true;
         return NULL;
     }*/
-    if(gethostbyname_r(gs->ip, &host_body, buf, sizeof(buf), &host, &ret))
+    if (gethostbyname_r(gs->ip, &host_body, buf, sizeof(buf), &host, &ret))
     {
         gs->actionEnd = true;
         return NULL;
     }
-    if(host == NULL)
+    if (host == NULL)
     {
         gs->actionEnd = true;
         return NULL;
@@ -123,7 +124,7 @@ void *websocket_getHost_fun(void *arge)
     addr_list = (struct in_addr **)host->h_addr_list;
     //printf("ip name : %s\r\nip list : ", host->h_name);
     //for(i = 0; addr_list[i] != NULL; i++) printf("%s, ", inet_ntoa(*addr_list[i])); printf("\r\n");
-    if(addr_list[0] == NULL)
+    if (addr_list[0] == NULL)
     {
         gs->actionEnd = true;
         return NULL;
@@ -138,10 +139,10 @@ void *websocket_getHost_fun(void *arge)
 int websocket_getIpByHostName(char *hostName, char *backIp)
 {
     int i, timeOut = 1;
-     GetHostName_Struct gs;
-    if(hostName == NULL)
+    GetHostName_Struct gs;
+    if (hostName == NULL)
         return -1;
-    else if(strlen(hostName) < 1)
+    else if (strlen(hostName) < 1)
         return -1;
     //----- 开线程从域名获取IP -----
     memset(&gs, 0, sizeof(GetHostName_Struct));
@@ -151,19 +152,19 @@ int websocket_getIpByHostName(char *hostName, char *backIp)
     if (pthread_create(&gs.thread_id, NULL, (void *)websocket_getHost_fun, &gs) < 0)
         return -1;
     i = 0;
-    while(!gs.actionEnd)
+    while (!gs.actionEnd)
     {
-        if(++i > 10)
+        if (++i > 10)
         {
             i = 0;
-            if(++timeOut > 1000)
+            if (++timeOut > 1000)
                 break;
         }
-        webSocket_delayms(1000);// 1ms延时
+        webSocket_delayms(1000); // 1ms延时
     }
     // pthread_cancel(gs.thread_id);
     pthread_join(gs.thread_id, NULL);
-    if(!gs.result)
+    if (!gs.result)
         return -timeOut;
     //----- 开线程从域名获取IP -----
     memset(backIp, 0, strlen(backIp));
@@ -185,35 +186,35 @@ const char websocket_base64char[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq
  * 返回: base64字符串长度
  * 说明: 无
  ******************************************************************************/
-int websocket_base64_encode( const unsigned char *bindata, char *base64, int binlength)
+int websocket_base64_encode(const unsigned char *bindata, char *base64, int binlength)
 {
     int i, j;
     unsigned char current;
-    for ( i = 0, j = 0 ; i < binlength ; i += 3 )
+    for (i = 0, j = 0; i < binlength; i += 3)
     {
-        current = (bindata[i] >> 2) ;
+        current = (bindata[i] >> 2);
         current &= (unsigned char)0x3F;
         base64[j++] = websocket_base64char[(int)current];
-        current = ( (unsigned char)(bindata[i] << 4 ) ) & ( (unsigned char)0x30 ) ;
-        if ( i + 1 >= binlength )
+        current = ((unsigned char)(bindata[i] << 4)) & ((unsigned char)0x30);
+        if (i + 1 >= binlength)
         {
             base64[j++] = websocket_base64char[(int)current];
             base64[j++] = '=';
             base64[j++] = '=';
             break;
         }
-        current |= ( (unsigned char)(bindata[i+1] >> 4) ) & ( (unsigned char) 0x0F );
+        current |= ((unsigned char)(bindata[i + 1] >> 4)) & ((unsigned char)0x0F);
         base64[j++] = websocket_base64char[(int)current];
-        current = ( (unsigned char)(bindata[i+1] << 2) ) & ( (unsigned char)0x3C ) ;
-        if ( i + 2 >= binlength )
+        current = ((unsigned char)(bindata[i + 1] << 2)) & ((unsigned char)0x3C);
+        if (i + 2 >= binlength)
         {
             base64[j++] = websocket_base64char[(int)current];
             base64[j++] = '=';
             break;
         }
-        current |= ( (unsigned char)(bindata[i+2] >> 6) ) & ( (unsigned char) 0x03 );
+        current |= ((unsigned char)(bindata[i + 2] >> 6)) & ((unsigned char)0x03);
         base64[j++] = websocket_base64char[(int)current];
-        current = ( (unsigned char)bindata[i+2] ) & ( (unsigned char)0x3F ) ;
+        current = ((unsigned char)bindata[i + 2]) & ((unsigned char)0x3F);
         base64[j++] = websocket_base64char[(int)current];
     }
     base64[j] = '\0';
@@ -227,222 +228,227 @@ int websocket_base64_encode( const unsigned char *bindata, char *base64, int bin
  * 返回: 解码出来的ascii字符串长度
  * 说明: 无
  ******************************************************************************/
-int websocket_base64_decode( const char *base64, unsigned char *bindata)
+int websocket_base64_decode(const char *base64, unsigned char *bindata)
 {
     int i, j;
     unsigned char k;
     unsigned char temp[4];
-    for ( i = 0, j = 0; base64[i] != '\0' ; i += 4 )
+    for (i = 0, j = 0; base64[i] != '\0'; i += 4)
     {
-        memset( temp, 0xFF, sizeof(temp) );
-        for ( k = 0 ; k < 64 ; k ++ )
+        memset(temp, 0xFF, sizeof(temp));
+        for (k = 0; k < 64; k++)
         {
-            if ( websocket_base64char[k] == base64[i] )
-                temp[0]= k;
+            if (websocket_base64char[k] == base64[i])
+                temp[0] = k;
         }
-        for ( k = 0 ; k < 64 ; k ++ )
+        for (k = 0; k < 64; k++)
         {
-            if ( websocket_base64char[k] == base64[i+1] )
-                temp[1]= k;
+            if (websocket_base64char[k] == base64[i + 1])
+                temp[1] = k;
         }
-        for ( k = 0 ; k < 64 ; k ++ )
+        for (k = 0; k < 64; k++)
         {
-            if ( websocket_base64char[k] == base64[i+2] )
-                temp[2]= k;
+            if (websocket_base64char[k] == base64[i + 2])
+                temp[2] = k;
         }
-        for ( k = 0 ; k < 64 ; k ++ )
+        for (k = 0; k < 64; k++)
         {
-            if ( websocket_base64char[k] == base64[i+3] )
-                temp[3]= k;
+            if (websocket_base64char[k] == base64[i + 3])
+                temp[3] = k;
         }
-        bindata[j++] = ((unsigned char)(((unsigned char)(temp[0] << 2))&0xFC)) | \
-                ((unsigned char)((unsigned char)(temp[1]>>4)&0x03));
-        if ( base64[i+2] == '=' )
+        bindata[j++] = ((unsigned char)(((unsigned char)(temp[0] << 2)) & 0xFC)) |
+                       ((unsigned char)((unsigned char)(temp[1] >> 4) & 0x03));
+        if (base64[i + 2] == '=')
             break;
-        bindata[j++] = ((unsigned char)(((unsigned char)(temp[1] << 4))&0xF0)) | \
-                ((unsigned char)((unsigned char)(temp[2]>>2)&0x0F));
-        if ( base64[i+3] == '=' )
+        bindata[j++] = ((unsigned char)(((unsigned char)(temp[1] << 4)) & 0xF0)) |
+                       ((unsigned char)((unsigned char)(temp[2] >> 2) & 0x0F));
+        if (base64[i + 3] == '=')
             break;
-        bindata[j++] = ((unsigned char)(((unsigned char)(temp[2] << 6))&0xF0)) | \
-                ((unsigned char)(temp[3]&0x3F));
+        bindata[j++] = ((unsigned char)(((unsigned char)(temp[2] << 6)) & 0xF0)) |
+                       ((unsigned char)(temp[3] & 0x3F));
     }
     return j;
 }
 
 //==================== 加密方法 sha1哈希 ====================
 
-typedef struct SHA1Context{  
-    unsigned Message_Digest[5];        
-    unsigned Length_Low;               
-    unsigned Length_High;              
-    unsigned char Message_Block[64];   
-    int Message_Block_Index;           
-    int Computed;                      
-    int Corrupted;                     
-} SHA1Context;  
+typedef struct SHA1Context
+{
+    unsigned Message_Digest[5];
+    unsigned Length_Low;
+    unsigned Length_High;
+    unsigned char Message_Block[64];
+    int Message_Block_Index;
+    int Computed;
+    int Corrupted;
+} SHA1Context;
 
-#define SHA1CircularShift(bits,word) ((((word) << (bits)) & 0xFFFFFFFF) | ((word) >> (32-(bits))))  
+#define SHA1CircularShift(bits, word) ((((word) << (bits)) & 0xFFFFFFFF) | ((word) >> (32 - (bits))))
 
 void SHA1ProcessMessageBlock(SHA1Context *context)
-{  
-    const unsigned K[] = {0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6 };  
-    int         t;                  
-    unsigned    temp;               
-    unsigned    W[80];              
-    unsigned    A, B, C, D, E;      
-  
-    for(t = 0; t < 16; t++) 
-    {  
-        W[t] = ((unsigned) context->Message_Block[t * 4]) << 24;  
-        W[t] |= ((unsigned) context->Message_Block[t * 4 + 1]) << 16;  
-        W[t] |= ((unsigned) context->Message_Block[t * 4 + 2]) << 8;  
-        W[t] |= ((unsigned) context->Message_Block[t * 4 + 3]);  
-    }  
-      
-    for(t = 16; t < 80; t++)  
-        W[t] = SHA1CircularShift(1,W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16]);  
-  
-    A = context->Message_Digest[0];  
-    B = context->Message_Digest[1];  
-    C = context->Message_Digest[2];  
-    D = context->Message_Digest[3];  
-    E = context->Message_Digest[4];  
-  
-    for(t = 0; t < 20; t++) 
-    {  
-        temp =  SHA1CircularShift(5,A) + ((B & C) | ((~B) & D)) + E + W[t] + K[0];  
-        temp &= 0xFFFFFFFF;  
-        E = D;  
-        D = C;  
-        C = SHA1CircularShift(30,B);  
-        B = A;  
-        A = temp;  
-    }  
-    for(t = 20; t < 40; t++) 
-    {  
-        temp = SHA1CircularShift(5,A) + (B ^ C ^ D) + E + W[t] + K[1];  
-        temp &= 0xFFFFFFFF;  
-        E = D;  
-        D = C;  
-        C = SHA1CircularShift(30,B);  
-        B = A;  
-        A = temp;  
-    }  
-    for(t = 40; t < 60; t++) 
-    {  
-        temp = SHA1CircularShift(5,A) + ((B & C) | (B & D) | (C & D)) + E + W[t] + K[2];  
-        temp &= 0xFFFFFFFF;  
-        E = D;  
-        D = C;  
-        C = SHA1CircularShift(30,B);  
-        B = A;  
-        A = temp;  
-    }  
-    for(t = 60; t < 80; t++) 
-    {  
-        temp = SHA1CircularShift(5,A) + (B ^ C ^ D) + E + W[t] + K[3];  
-        temp &= 0xFFFFFFFF;  
-        E = D;  
-        D = C;  
-        C = SHA1CircularShift(30,B);  
-        B = A;  
-        A = temp;  
-    }  
-    context->Message_Digest[0] = (context->Message_Digest[0] + A) & 0xFFFFFFFF;  
-    context->Message_Digest[1] = (context->Message_Digest[1] + B) & 0xFFFFFFFF;  
-    context->Message_Digest[2] = (context->Message_Digest[2] + C) & 0xFFFFFFFF;  
-    context->Message_Digest[3] = (context->Message_Digest[3] + D) & 0xFFFFFFFF;  
-    context->Message_Digest[4] = (context->Message_Digest[4] + E) & 0xFFFFFFFF;  
-    context->Message_Block_Index = 0;  
-} 
+{
+    const unsigned K[] = {0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6};
+    int t;
+    unsigned temp;
+    unsigned W[80];
+    unsigned A, B, C, D, E;
+
+    for (t = 0; t < 16; t++)
+    {
+        W[t] = ((unsigned)context->Message_Block[t * 4]) << 24;
+        W[t] |= ((unsigned)context->Message_Block[t * 4 + 1]) << 16;
+        W[t] |= ((unsigned)context->Message_Block[t * 4 + 2]) << 8;
+        W[t] |= ((unsigned)context->Message_Block[t * 4 + 3]);
+    }
+
+    for (t = 16; t < 80; t++)
+        W[t] = SHA1CircularShift(1, W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16]);
+
+    A = context->Message_Digest[0];
+    B = context->Message_Digest[1];
+    C = context->Message_Digest[2];
+    D = context->Message_Digest[3];
+    E = context->Message_Digest[4];
+
+    for (t = 0; t < 20; t++)
+    {
+        temp = SHA1CircularShift(5, A) + ((B & C) | ((~B) & D)) + E + W[t] + K[0];
+        temp &= 0xFFFFFFFF;
+        E = D;
+        D = C;
+        C = SHA1CircularShift(30, B);
+        B = A;
+        A = temp;
+    }
+    for (t = 20; t < 40; t++)
+    {
+        temp = SHA1CircularShift(5, A) + (B ^ C ^ D) + E + W[t] + K[1];
+        temp &= 0xFFFFFFFF;
+        E = D;
+        D = C;
+        C = SHA1CircularShift(30, B);
+        B = A;
+        A = temp;
+    }
+    for (t = 40; t < 60; t++)
+    {
+        temp = SHA1CircularShift(5, A) + ((B & C) | (B & D) | (C & D)) + E + W[t] + K[2];
+        temp &= 0xFFFFFFFF;
+        E = D;
+        D = C;
+        C = SHA1CircularShift(30, B);
+        B = A;
+        A = temp;
+    }
+    for (t = 60; t < 80; t++)
+    {
+        temp = SHA1CircularShift(5, A) + (B ^ C ^ D) + E + W[t] + K[3];
+        temp &= 0xFFFFFFFF;
+        E = D;
+        D = C;
+        C = SHA1CircularShift(30, B);
+        B = A;
+        A = temp;
+    }
+    context->Message_Digest[0] = (context->Message_Digest[0] + A) & 0xFFFFFFFF;
+    context->Message_Digest[1] = (context->Message_Digest[1] + B) & 0xFFFFFFFF;
+    context->Message_Digest[2] = (context->Message_Digest[2] + C) & 0xFFFFFFFF;
+    context->Message_Digest[3] = (context->Message_Digest[3] + D) & 0xFFFFFFFF;
+    context->Message_Digest[4] = (context->Message_Digest[4] + E) & 0xFFFFFFFF;
+    context->Message_Block_Index = 0;
+}
 
 void SHA1Reset(SHA1Context *context)
 {
-    context->Length_Low             = 0;  
-    context->Length_High            = 0;  
-    context->Message_Block_Index    = 0;  
-  
-    context->Message_Digest[0]      = 0x67452301;  
-    context->Message_Digest[1]      = 0xEFCDAB89;  
-    context->Message_Digest[2]      = 0x98BADCFE;  
-    context->Message_Digest[3]      = 0x10325476;  
-    context->Message_Digest[4]      = 0xC3D2E1F0;  
-  
-    context->Computed   = 0;  
-    context->Corrupted  = 0;  
-}  
-  
+    context->Length_Low = 0;
+    context->Length_High = 0;
+    context->Message_Block_Index = 0;
+
+    context->Message_Digest[0] = 0x67452301;
+    context->Message_Digest[1] = 0xEFCDAB89;
+    context->Message_Digest[2] = 0x98BADCFE;
+    context->Message_Digest[3] = 0x10325476;
+    context->Message_Digest[4] = 0xC3D2E1F0;
+
+    context->Computed = 0;
+    context->Corrupted = 0;
+}
+
 void SHA1PadMessage(SHA1Context *context)
-{  
-    if (context->Message_Block_Index > 55) 
-    {  
-        context->Message_Block[context->Message_Block_Index++] = 0x80;  
-        while(context->Message_Block_Index < 64)  context->Message_Block[context->Message_Block_Index++] = 0;  
-        SHA1ProcessMessageBlock(context);  
-        while(context->Message_Block_Index < 56) context->Message_Block[context->Message_Block_Index++] = 0;  
-    } 
-    else 
-    {  
-        context->Message_Block[context->Message_Block_Index++] = 0x80;  
-        while(context->Message_Block_Index < 56) context->Message_Block[context->Message_Block_Index++] = 0;  
-    }  
-    context->Message_Block[56] = (context->Length_High >> 24 ) & 0xFF;  
-    context->Message_Block[57] = (context->Length_High >> 16 ) & 0xFF;  
-    context->Message_Block[58] = (context->Length_High >> 8 ) & 0xFF;  
-    context->Message_Block[59] = (context->Length_High) & 0xFF;  
-    context->Message_Block[60] = (context->Length_Low >> 24 ) & 0xFF;  
-    context->Message_Block[61] = (context->Length_Low >> 16 ) & 0xFF;  
-    context->Message_Block[62] = (context->Length_Low >> 8 ) & 0xFF;  
-    context->Message_Block[63] = (context->Length_Low) & 0xFF;  
-  
-    SHA1ProcessMessageBlock(context);  
-} 
+{
+    if (context->Message_Block_Index > 55)
+    {
+        context->Message_Block[context->Message_Block_Index++] = 0x80;
+        while (context->Message_Block_Index < 64)
+            context->Message_Block[context->Message_Block_Index++] = 0;
+        SHA1ProcessMessageBlock(context);
+        while (context->Message_Block_Index < 56)
+            context->Message_Block[context->Message_Block_Index++] = 0;
+    }
+    else
+    {
+        context->Message_Block[context->Message_Block_Index++] = 0x80;
+        while (context->Message_Block_Index < 56)
+            context->Message_Block[context->Message_Block_Index++] = 0;
+    }
+    context->Message_Block[56] = (context->Length_High >> 24) & 0xFF;
+    context->Message_Block[57] = (context->Length_High >> 16) & 0xFF;
+    context->Message_Block[58] = (context->Length_High >> 8) & 0xFF;
+    context->Message_Block[59] = (context->Length_High) & 0xFF;
+    context->Message_Block[60] = (context->Length_Low >> 24) & 0xFF;
+    context->Message_Block[61] = (context->Length_Low >> 16) & 0xFF;
+    context->Message_Block[62] = (context->Length_Low >> 8) & 0xFF;
+    context->Message_Block[63] = (context->Length_Low) & 0xFF;
+
+    SHA1ProcessMessageBlock(context);
+}
 
 int SHA1Result(SHA1Context *context)
 {
-    if (context->Corrupted) 
-    {  
-        return 0;  
-    }  
-    if (!context->Computed) 
-    {  
-        SHA1PadMessage(context);  
-        context->Computed = 1;  
-    }  
-    return 1;  
-}  
-  
-  
-void SHA1Input(SHA1Context *context,const char *message_array,unsigned length){  
-    if (!length) 
-        return;  
-  
+    if (context->Corrupted)
+    {
+        return 0;
+    }
+    if (!context->Computed)
+    {
+        SHA1PadMessage(context);
+        context->Computed = 1;
+    }
+    return 1;
+}
+
+void SHA1Input(SHA1Context *context, const char *message_array, unsigned length)
+{
+    if (!length)
+        return;
+
     if (context->Computed || context->Corrupted)
-    {  
-        context->Corrupted = 1;  
-        return;  
-    }  
-  
-    while(length-- && !context->Corrupted)
-    {  
-        context->Message_Block[context->Message_Block_Index++] = (*message_array & 0xFF);  
-  
-        context->Length_Low += 8;  
-  
-        context->Length_Low &= 0xFFFFFFFF;  
+    {
+        context->Corrupted = 1;
+        return;
+    }
+
+    while (length-- && !context->Corrupted)
+    {
+        context->Message_Block[context->Message_Block_Index++] = (*message_array & 0xFF);
+
+        context->Length_Low += 8;
+
+        context->Length_Low &= 0xFFFFFFFF;
         if (context->Length_Low == 0)
-        {  
-            context->Length_High++;  
-            context->Length_High &= 0xFFFFFFFF;  
-            if (context->Length_High == 0) context->Corrupted = 1;  
-        }  
-  
+        {
+            context->Length_High++;
+            context->Length_High &= 0xFFFFFFFF;
+            if (context->Length_High == 0)
+                context->Corrupted = 1;
+        }
+
         if (context->Message_Block_Index == 64)
-        {  
-            SHA1ProcessMessageBlock(context);  
-        }  
-        message_array++;  
-    }  
+        {
+            SHA1ProcessMessageBlock(context);
+        }
+        message_array++;
+    }
 }
 
 /* 
@@ -465,77 +471,77 @@ int sha1_hash(const char *source, char *lrvar){// Main
         return strlen(buf); 
     } 
 } 
-*/  
-char * sha1_hash(const char *source){   // Main  
-    SHA1Context sha;  
-    char *buf;//[128];  
-  
-    SHA1Reset(&sha);  
-    SHA1Input(&sha, source, strlen(source));  
-  
-    if (!SHA1Result(&sha))
-    {  
-        printf("SHA1 ERROR: Could not compute message digest");  
-        return NULL;  
-    } 
-    else 
-    {  
-        buf = (char *)malloc(128);  
-        memset(buf, 0, 128);  
-        sprintf(buf, "%08X%08X%08X%08X%08X", sha.Message_Digest[0],sha.Message_Digest[1],  
-        sha.Message_Digest[2],sha.Message_Digest[3],sha.Message_Digest[4]);  
-        //lr_save_string(buf, lrvar);  
-          
-        //return strlen(buf);  
-        return buf;  
-    }  
-}  
+*/
+char *sha1_hash(const char *source)
+{ // Main
+    SHA1Context sha;
+    char *buf; //[128];
 
-int tolower(int c)   
-{   
-    if (c >= 'A' && c <= 'Z')   
-    {   
-        return c + 'a' - 'A';   
-    }   
-    else   
-    {   
-        return c;   
-    }   
+    SHA1Reset(&sha);
+    SHA1Input(&sha, source, strlen(source));
+
+    if (!SHA1Result(&sha))
+    {
+        printf("SHA1 ERROR: Could not compute message digest");
+        return NULL;
+    }
+    else
+    {
+        buf = (char *)malloc(128);
+        memset(buf, 0, 128);
+        sprintf(buf, "%08X%08X%08X%08X%08X", sha.Message_Digest[0], sha.Message_Digest[1],
+                sha.Message_Digest[2], sha.Message_Digest[3], sha.Message_Digest[4]);
+        //lr_save_string(buf, lrvar);
+
+        //return strlen(buf);
+        return buf;
+    }
 }
 
-int htoi(const char s[], int start, int len)   
-{   
-    int i, j;   
-    int n = 0;   
-    if (s[0] == '0' && (s[1]=='x' || s[1]=='X')) //判断是否有前导0x或者0X  
-    {   
-        i = 2;   
-    }   
-    else   
-    {   
-        i = 0;   
-    }   
-    i+=start;  
-    j=0;  
-    for (; (s[i] >= '0' && s[i] <= '9')   
-       || (s[i] >= 'a' && s[i] <= 'f') || (s[i] >='A' && s[i] <= 'F');++i)   
-    {     
-        if(j>=len)  
-        {  
-            break;  
-        }  
-        if (tolower(s[i]) > '9')   
-        {   
-            n = 16 * n + (10 + tolower(s[i]) - 'a');   
-        }   
-        else   
-        {   
-            n = 16 * n + (tolower(s[i]) - '0');   
-        }   
-        j++;  
-    }   
-    return n;   
-}   
+int tolower(int c)
+{
+    if (c >= 'A' && c <= 'Z')
+    {
+        return c + 'a' - 'A';
+    }
+    else
+    {
+        return c;
+    }
+}
+
+int htoi(const char s[], int start, int len)
+{
+    int i, j;
+    int n = 0;
+    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) //判断是否有前导0x或者0X
+    {
+        i = 2;
+    }
+    else
+    {
+        i = 0;
+    }
+    i += start;
+    j = 0;
+    for (; (s[i] >= '0' && s[i] <= '9') || (s[i] >= 'a' && s[i] <= 'f') || (s[i] >= 'A' && s[i] <= 'F'); ++i)
+    {
+        if (j >= len)
+        {
+            break;
+        }
+        if (tolower(s[i]) > '9')
+        {
+            n = 16 * n + (10 + tolower(s[i]) - 'a');
+        }
+        else
+        {
+            n = 16 * n + (tolower(s[i]) - '0');
+        }
+        j++;
+    }
+    return n;
+}
 
 //==============================================================================================
 //======================================== websocket部分 =======================================
@@ -565,10 +571,10 @@ void webSocket_getRandomString(unsigned char *buf, unsigned int len)
     unsigned int i;
     unsigned char temp;
     srand((int)time(0));
-    for(i = 0; i < len; i++)
+    for (i = 0; i < len; i++)
     {
-        temp = (unsigned char)(rand()%256);
-        if(temp == 0)   // 随机数不要0, 0 会干扰对字符串长度的判断
+        temp = (unsigned char)(rand() % 256);
+        if (temp == 0) // 随机数不要0, 0 会干扰对字符串长度的判断
             temp = 128;
         buf[i] = temp;
     }
@@ -597,30 +603,30 @@ int webSocket_buildShakeKey(unsigned char *key)
  ******************************************************************************/
 int webSocket_buildRespondShakeKey(unsigned char *acceptKey, unsigned int acceptKeyLen, unsigned char *respondKey)
 {
-    char *clientKey;  
-    char *sha1DataTemp;  
-    char *sha1Data;  
-    int i, n;  
-    const char GUID[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";  
+    char *clientKey;
+    char *sha1DataTemp;
+    char *sha1Data;
+    int i, n;
+    const char GUID[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     unsigned int GUIDLEN;
-    
-    if(acceptKey == NULL)  
-        return 0;  
+
+    if (acceptKey == NULL)
+        return 0;
     GUIDLEN = sizeof(GUID);
-    clientKey = (char *)calloc(acceptKeyLen + GUIDLEN + 10, sizeof(char));  
+    clientKey = (char *)calloc(acceptKeyLen + GUIDLEN + 10, sizeof(char));
     memset(clientKey, 0, (acceptKeyLen + GUIDLEN + 10));
     //
-    memcpy(clientKey, acceptKey, acceptKeyLen); 
+    memcpy(clientKey, acceptKey, acceptKeyLen);
     memcpy(&clientKey[acceptKeyLen], GUID, GUIDLEN);
     clientKey[acceptKeyLen + GUIDLEN] = '\0';
     //
-    sha1DataTemp = sha1_hash(clientKey);  
-    n = strlen((const char *)sha1DataTemp);  
-    sha1Data = (char *)calloc(n / 2 + 1, sizeof(char));  
-    memset(sha1Data, 0, n / 2 + 1);  
-   //
-    for(i = 0; i < n; i += 2)  
-        sha1Data[ i / 2 ] = htoi(sha1DataTemp, i, 2);      
+    sha1DataTemp = sha1_hash(clientKey);
+    n = strlen((const char *)sha1DataTemp);
+    sha1Data = (char *)calloc(n / 2 + 1, sizeof(char));
+    memset(sha1Data, 0, n / 2 + 1);
+    //
+    for (i = 0; i < n; i += 2)
+        sha1Data[i / 2] = htoi(sha1DataTemp, i, 2);
     n = websocket_base64_encode((const unsigned char *)sha1Data, (char *)respondKey, (n / 2));
     //
     free(sha1DataTemp);
@@ -646,12 +652,12 @@ int webSocket_matchShakeKey(unsigned char *myKey, unsigned int myKeyLen, unsigne
     retLen = webSocket_buildRespondShakeKey(myKey, myKeyLen, tempKey);
     //printf("webSocket_matchShakeKey :\r\n%d : %s\r\n%d : %s\r\n", acceptKeyLen, acceptKey, retLen, tempKey);
     //
-    if(retLen != acceptKeyLen)
+    if (retLen != acceptKeyLen)
     {
         printf("webSocket_matchShakeKey : len err\r\n%s\r\n%s\r\n%s\r\n", myKey, tempKey, acceptKey);
         return -1;
     }
-    else if(strcmp((const char *)tempKey, (const char *)acceptKey) != 0)
+    else if (strcmp((const char *)tempKey, (const char *)acceptKey) != 0)
     {
         printf("webSocket_matchShakeKey : str err\r\n%s\r\n%s\r\n", tempKey, acceptKey);
         return -1;
@@ -695,13 +701,13 @@ void webSocket_buildHttpRespond(unsigned char *acceptKey, unsigned int acceptKey
                             "Server: Microsoft-HTTPAPI/2.0\r\n"
                             "Connection: Upgrade\r\n"
                             "Sec-WebSocket-Accept: %s\r\n"
-                            "%s\r\n\r\n";  // 时间打包待续        // 格式如 "Date: Tue, 20 Jun 2017 08:50:41 CST\r\n"
+                            "%s\r\n\r\n"; // 时间打包待续        // 格式如 "Date: Tue, 20 Jun 2017 08:50:41 CST\r\n"
     time_t now;
     struct tm *tm_now;
     char timeStr[256] = {0};
     unsigned char respondShakeKey[256] = {0};
     // 构建回应的握手key
-    webSocket_buildRespondShakeKey(acceptKey, acceptKeyLen, respondShakeKey);   
+    webSocket_buildRespondShakeKey(acceptKey, acceptKeyLen, respondShakeKey);
     // 构建回应时间字符串
     time(&now);
     tm_now = localtime(&now);
@@ -723,88 +729,88 @@ void webSocket_buildHttpRespond(unsigned char *acceptKey, unsigned int acceptKey
  ******************************************************************************/
 int webSocket_enPackage(unsigned char *data, unsigned int dataLen, unsigned char *package, unsigned int packageMaxLen, bool isMask, WebsocketData_Type type)
 {
-    unsigned char maskKey[4] = {0};    // 掩码
+    unsigned char maskKey[4] = {0}; // 掩码
     unsigned char temp1, temp2;
     int count;
     unsigned int i, len = 0;
-    
-    if(packageMaxLen < 2)
+
+    if (packageMaxLen < 2)
         return -1;
-    
-    if(type == WDT_MINDATA)
+
+    if (type == WDT_MINDATA)
         *package++ = 0x00;
-    else if(type == WDT_TXTDATA)
+    else if (type == WDT_TXTDATA)
         *package++ = 0x81;
-    else if(type == WDT_BINDATA)
+    else if (type == WDT_BINDATA)
         *package++ = 0x82;
-    else if(type == WDT_DISCONN)
+    else if (type == WDT_DISCONN)
         *package++ = 0x88;
-    else if(type == WDT_PING)
+    else if (type == WDT_PING)
         *package++ = 0x89;
-    else if(type == WDT_PONG)
+    else if (type == WDT_PONG)
         *package++ = 0x8A;
     else
         return -1;
     //
-    if(isMask)
+    if (isMask)
         *package = 0x80;
     len += 1;
     //
-    if(dataLen < 126)
+    if (dataLen < 126)
     {
-        *package++ |= (dataLen&0x7F);
+        *package++ |= (dataLen & 0x7F);
         len += 1;
     }
-    else if(dataLen < 65536)
+    else if (dataLen < 65536)
     {
-        if(packageMaxLen < 4)
+        if (packageMaxLen < 4)
             return -1;
         *package++ |= 0x7E;
         *package++ = (char)((dataLen >> 8) & 0xFF);
         *package++ = (unsigned char)((dataLen >> 0) & 0xFF);
         len += 3;
     }
-    else if(dataLen < 0xFFFFFFFF)
+    else if (dataLen < 0xFFFFFFFF)
     {
-        if(packageMaxLen < 10)
+        if (packageMaxLen < 10)
             return -1;
         *package++ |= 0x7F;
-        *package++ = 0; //(char)((dataLen >> 56) & 0xFF);   // 数据长度变量是 unsigned int dataLen, 暂时没有那么多数据
-        *package++ = 0; //(char)((dataLen >> 48) & 0xFF);
-        *package++ = 0; //(char)((dataLen >> 40) & 0xFF);
-        *package++ = 0; //(char)((dataLen >> 32) & 0xFF);
-        *package++ = (char)((dataLen >> 24) & 0xFF);        // 到这里就够传4GB数据了
+        *package++ = 0;                              //(char)((dataLen >> 56) & 0xFF);   // 数据长度变量是 unsigned int dataLen, 暂时没有那么多数据
+        *package++ = 0;                              //(char)((dataLen >> 48) & 0xFF);
+        *package++ = 0;                              //(char)((dataLen >> 40) & 0xFF);
+        *package++ = 0;                              //(char)((dataLen >> 32) & 0xFF);
+        *package++ = (char)((dataLen >> 24) & 0xFF); // 到这里就够传4GB数据了
         *package++ = (char)((dataLen >> 16) & 0xFF);
         *package++ = (char)((dataLen >> 8) & 0xFF);
         *package++ = (char)((dataLen >> 0) & 0xFF);
         len += 9;
     }
     //
-    if(isMask)    // 数据使用掩码时, 使用异或解码, maskKey[4]依次和数据异或运算, 逻辑如下
+    if (isMask) // 数据使用掩码时, 使用异或解码, maskKey[4]依次和数据异或运算, 逻辑如下
     {
-        if(packageMaxLen < len + dataLen + 4)
+        if (packageMaxLen < len + dataLen + 4)
             return -1;
-        webSocket_getRandomString(maskKey, sizeof(maskKey));    // 随机生成掩码
+        webSocket_getRandomString(maskKey, sizeof(maskKey)); // 随机生成掩码
         *package++ = maskKey[0];
         *package++ = maskKey[1];
         *package++ = maskKey[2];
         *package++ = maskKey[3];
         len += 4;
-        for(i = 0, count = 0; i < dataLen; i++)
+        for (i = 0, count = 0; i < dataLen; i++)
         {
             temp1 = maskKey[count];
             temp2 = data[i];
-            *package++ = (char)(((~temp1)&temp2) | (temp1&(~temp2)));  // 异或运算后得到数据
+            *package++ = (char)(((~temp1) & temp2) | (temp1 & (~temp2))); // 异或运算后得到数据
             count += 1;
-            if(count >= sizeof(maskKey))    // maskKey[4]循环使用
+            if (count >= sizeof(maskKey)) // maskKey[4]循环使用
                 count = 0;
         }
         len += i;
         *package = '\0';
     }
-    else    // 数据没使用掩码, 直接复制数据段
+    else // 数据没使用掩码, 直接复制数据段
     {
-        if(packageMaxLen < len + dataLen)
+        if (packageMaxLen < len + dataLen)
             return -1;
         memcpy(package, data, dataLen);
         package[dataLen] = '\0';
@@ -826,37 +832,37 @@ int webSocket_enPackage(unsigned char *data, unsigned int dataLen, unsigned char
  ******************************************************************************/
 int webSocket_dePackage(unsigned char *data, unsigned int dataLen, unsigned char *package, unsigned int packageMaxLen, unsigned int *packageLen, unsigned int *packageHeadLen)
 {
-    unsigned char maskKey[4] = {0};    // 掩码
+    unsigned char maskKey[4] = {0}; // 掩码
     unsigned char temp1, temp2;
     char Mask = 0, type;
     int count, ret;
     unsigned int i, len = 0, dataStart = 2;
-    if(dataLen < 2)
+    if (dataLen < 2)
         return WDT_ERR;
-    
-    type = data[0]&0x0F;
-    
-    if((data[0]&0x80) == 0x80)
+
+    type = data[0] & 0x0F;
+
+    if ((data[0] & 0x80) == 0x80)
     {
-        if(type == 0x01) 
+        if (type == 0x01)
             ret = WDT_TXTDATA;
-        else if(type == 0x02) 
+        else if (type == 0x02)
             ret = WDT_BINDATA;
-        else if(type == 0x08) 
+        else if (type == 0x08)
             ret = WDT_DISCONN;
-        else if(type == 0x09) 
+        else if (type == 0x09)
             ret = WDT_PING;
-        else if(type == 0x0A) 
+        else if (type == 0x0A)
             ret = WDT_PONG;
-        else 
+        else
             return WDT_ERR;
     }
-    else if(type == 0x00) 
+    else if (type == 0x00)
         ret = WDT_MINDATA;
     else
         return WDT_ERR;
     //
-    if((data[1] & 0x80) == 0x80)
+    if ((data[1] & 0x80) == 0x80)
     {
         Mask = 1;
         count = 4;
@@ -869,18 +875,20 @@ int webSocket_dePackage(unsigned char *data, unsigned int dataLen, unsigned char
     //
     len = data[1] & 0x7F;
     //
-    if(len == 126)
+    if (len == 126)
     {
-        if(dataLen < 4)
+        if (dataLen < 4)
             return WDT_ERR;
         len = data[2];
         len = (len << 8) + data[3];
-        if(packageLen) *packageLen = len;//转储包长度
-        if(packageHeadLen) *packageHeadLen = 4 + count;
+        if (packageLen)
+            *packageLen = len; //转储包长度
+        if (packageHeadLen)
+            *packageHeadLen = 4 + count;
         //
-        if(dataLen < len + 4 + count)
+        if (dataLen < len + 4 + count)
             return WDT_ERR;
-        if(Mask)
+        if (Mask)
         {
             maskKey[0] = data[4];
             maskKey[1] = data[5];
@@ -891,22 +899,24 @@ int webSocket_dePackage(unsigned char *data, unsigned int dataLen, unsigned char
         else
             dataStart = 4;
     }
-    else if(len == 127)
+    else if (len == 127)
     {
-        if(dataLen < 10)
+        if (dataLen < 10)
             return WDT_ERR;
-        if(data[2] != 0 || data[3] != 0 || data[4] != 0 || data[5] != 0)    //使用8个字节存储长度时,前4位必须为0,装不下那么多数据...
+        if (data[2] != 0 || data[3] != 0 || data[4] != 0 || data[5] != 0) //使用8个字节存储长度时,前4位必须为0,装不下那么多数据...
             return WDT_ERR;
         len = data[6];
         len = (len << 8) + data[7];
         len = (len << 8) + data[8];
         len = (len << 8) + data[9];
-        if(packageLen) *packageLen = len;//转储包长度
-        if(packageHeadLen) *packageHeadLen = 10 + count;
+        if (packageLen)
+            *packageLen = len; //转储包长度
+        if (packageHeadLen)
+            *packageHeadLen = 10 + count;
         //
-        if(dataLen < len + 10 + count)
+        if (dataLen < len + 10 + count)
             return WDT_ERR;
-        if(Mask)
+        if (Mask)
         {
             maskKey[0] = data[10];
             maskKey[1] = data[11];
@@ -919,12 +929,14 @@ int webSocket_dePackage(unsigned char *data, unsigned int dataLen, unsigned char
     }
     else
     {
-        if(packageLen) *packageLen = len;//转储包长度
-        if(packageHeadLen) *packageHeadLen = 2 + count;
+        if (packageLen)
+            *packageLen = len; //转储包长度
+        if (packageHeadLen)
+            *packageHeadLen = 2 + count;
         //
-        if(dataLen < len + 2 + count)
+        if (dataLen < len + 2 + count)
             return WDT_ERR;
-        if(Mask)
+        if (Mask)
         {
             maskKey[0] = data[2];
             maskKey[1] = data[3];
@@ -936,33 +948,33 @@ int webSocket_dePackage(unsigned char *data, unsigned int dataLen, unsigned char
             dataStart = 2;
     }
     //
-    if(dataLen < len + dataStart)
+    if (dataLen < len + dataStart)
         return WDT_ERR;
     //
-    if(packageMaxLen < len + 1)
+    if (packageMaxLen < len + 1)
         return WDT_ERR;
     //
-    if(Mask)    // 解包数据使用掩码时, 使用异或解码, maskKey[4]依次和数据异或运算, 逻辑如下
+    if (Mask) // 解包数据使用掩码时, 使用异或解码, maskKey[4]依次和数据异或运算, 逻辑如下
     {
-        for(i = 0, count = 0; i < len; i++)
+        for (i = 0, count = 0; i < len; i++)
         {
             temp1 = maskKey[count];
             temp2 = data[i + dataStart];
-            *package++ =  (char)(((~temp1)&temp2) | (temp1&(~temp2)));  // 异或运算后得到数据
+            *package++ = (char)(((~temp1) & temp2) | (temp1 & (~temp2))); // 异或运算后得到数据
             count += 1;
-            if(count >= sizeof(maskKey))    // maskKey[4]循环使用
+            if (count >= sizeof(maskKey)) // maskKey[4]循环使用
                 count = 0;
         }
         *package = '\0';
     }
-    else    // 解包数据没使用掩码, 直接复制数据段
+    else // 解包数据没使用掩码, 直接复制数据段
     {
         memcpy(package, &data[dataStart], len);
         package[len] = '\0';
     }
     //
     return ret;
-}/*******************************************************************************
+} /*******************************************************************************
  * 名称: webSocket_clientLinkToServer
  * 功能: 向websocket服务器发送http(携带握手key), 以和服务器构建连接, 非阻塞模式
  * 形参: *ip：服务器ip
@@ -973,131 +985,131 @@ int webSocket_dePackage(unsigned char *data, unsigned int dataLen, unsigned char
  ******************************************************************************/
 int webSocket_clientLinkToServer(char *ip, int port, char *interface_path)
 {
-    int ret, fd , timeOut;
+    int ret, fd, timeOut;
     int i;
-	unsigned char loginBuf[512] = {0}, recBuf[512] = {0}, shakeKey[128] = {0}, *p;
-	char tempIp[128] = {0};
-	//服务器端网络地址结构体   
-	struct sockaddr_in report_addr; 	
-    memset(&report_addr,0,sizeof(report_addr)); 			// 数据初始化--清零     
-    report_addr.sin_family = AF_INET; 						// 设置为IP通信     
-    //report_addr.sin_addr.s_addr = inet_addr(ip);			  
-    if((report_addr.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE)  // 服务器IP地址, 自动域名转换 
+    unsigned char loginBuf[512] = {0}, recBuf[512] = {0}, shakeKey[128] = {0}, *p;
+    char tempIp[128] = {0};
+    //服务器端网络地址结构体
+    struct sockaddr_in report_addr;
+    memset(&report_addr, 0, sizeof(report_addr)); // 数据初始化--清零
+    report_addr.sin_family = AF_INET;             // 设置为IP通信
+    //report_addr.sin_addr.s_addr = inet_addr(ip);
+    if ((report_addr.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE) // 服务器IP地址, 自动域名转换
     {
         ret = websocket_getIpByHostName(ip, tempIp);
-        if(ret < 0)
+        if (ret < 0)
             return ret;
-        else if(strlen(tempIp) < 7)
+        else if (strlen(tempIp) < 7)
             return -ret;
         else
             timeOut += ret;
         //
-        if((report_addr.sin_addr.s_addr = inet_addr(tempIp)) == INADDR_NONE)
+        if ((report_addr.sin_addr.s_addr = inet_addr(tempIp)) == INADDR_NONE)
             return -ret;
 #ifdef WEBSOCKET_DEBUG
         printf("webSocket_clientLinkToServer : Host(%s) to Ip(%s)\r\n", ip, tempIp);
 #endif
     }
-    report_addr.sin_port = htons(port); 							// 服务器端口号     
+    report_addr.sin_port = htons(port); // 服务器端口号
     //
     //printf("webSocket_clientLinkToServer : ip/%s, port/%d path/%s\r\n", ip, port, interface_path);
-	//create unix socket  
-    if((fd = socket(AF_INET,SOCK_STREAM, 0)) < 0) 
-    {  
-        printf("webSocket_login : cannot create socket\r\n");  
-        return -1;  
+    //create unix socket
+    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        printf("webSocket_login : cannot create socket\r\n");
+        return -1;
     }
-    
+
     // 测试 -----  创建握手key 和 匹配返回key
-    // webSocket_buildShakeKey(shakeKey); 
+    // webSocket_buildShakeKey(shakeKey);
     // printf("key1:%s\r\n", shakeKey);
     // webSocket_buildRespondShakeKey(shakeKey, strlen(shakeKey), shakeKey);
     // printf("key2:%s\r\n", shakeKey);
-    
+
     //非阻塞
-    ret = fcntl(fd , F_GETFL , 0);
-    fcntl(fd , F_SETFL , ret | O_NONBLOCK);
-    
+    ret = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, ret | O_NONBLOCK);
+
     //connect
     timeOut = 0;
-	while(connect(fd , (struct sockaddr *)&report_addr,sizeof(struct sockaddr)) == -1)
-	{
-		if(++timeOut > WEBSOCKET_LOGIN_CONNECT_TIMEOUT)
-		{
-			printf("webSocket_login : cannot connect to %s:%d ! %d\r\n" , ip, port, timeOut);
-			close(fd); 
-		    return -timeOut;  
-		}
-		webSocket_delayms(1);  //1ms 
-	}
-	
-	//发送http协议头
-	memset(shakeKey, 0, sizeof(shakeKey));
-	webSocket_buildShakeKey(shakeKey);  // 创建握手key
-	
-	memset(loginBuf, 0, sizeof(loginBuf));  // 创建协议包
-	webSocket_buildHttpHead(ip, port, interface_path, shakeKey, (char *)loginBuf);   
-	//发出协议包
-    ret = send(fd , loginBuf , strlen((const char*)loginBuf) , MSG_NOSIGNAL);
+    while (connect(fd, (struct sockaddr *)&report_addr, sizeof(struct sockaddr)) == -1)
+    {
+        if (++timeOut > WEBSOCKET_LOGIN_CONNECT_TIMEOUT)
+        {
+            printf("webSocket_login : cannot connect to %s:%d ! %d\r\n", ip, port, timeOut);
+            close(fd);
+            return -timeOut;
+        }
+        webSocket_delayms(1); //1ms
+    }
+
+    //发送http协议头
+    memset(shakeKey, 0, sizeof(shakeKey));
+    webSocket_buildShakeKey(shakeKey); // 创建握手key
+
+    memset(loginBuf, 0, sizeof(loginBuf)); // 创建协议包
+    webSocket_buildHttpHead(ip, port, interface_path, shakeKey, (char *)loginBuf);
+    //发出协议包
+    ret = send(fd, loginBuf, strlen((const char *)loginBuf), MSG_NOSIGNAL);
 
     //显示http请求
 #ifdef WEBSOCKET_DEBUG
-	printf("\r\nconnect : %dms\r\nlogin_send:\r\n%s\r\n" , timeOut, loginBuf); 
+    printf("\r\nconnect : %dms\r\nlogin_send:\r\n%s\r\n", timeOut, loginBuf);
 #endif
-	//
-    while(1)
+    //
+    while (1)
     {
-		memset(recBuf , 0 , sizeof(recBuf));
-		ret = recv(fd , recBuf , sizeof(recBuf) ,  MSG_NOSIGNAL);
-		if(ret > 0)
-		{
-		    if(strncmp((const char *)recBuf, (const char *)"HTTP", strlen((const char *)"HTTP")) == 0)    // 返回的是http回应信息
+        memset(recBuf, 0, sizeof(recBuf));
+        ret = recv(fd, recBuf, sizeof(recBuf), MSG_NOSIGNAL);
+        if (ret > 0)
+        {
+            if (strncmp((const char *)recBuf, (const char *)"HTTP", strlen((const char *)"HTTP")) == 0) // 返回的是http回应信息
             {
                 //显示http返回
 #ifdef WEBSOCKET_DEBUG
-                printf("\r\nlogin_recv : %d / %dms\r\n%s\r\n" , ret, timeOut, recBuf); 
+                printf("\r\nlogin_recv : %d / %dms\r\n%s\r\n", ret, timeOut, recBuf);
 #endif
                 //
-                if((p = (unsigned char *)strstr((const char *)recBuf, (const char *)"Sec-WebSocket-Accept: ")) != NULL) // 定位到握手字符串
+                if ((p = (unsigned char *)strstr((const char *)recBuf, (const char *)"Sec-WebSocket-Accept: ")) != NULL) // 定位到握手字符串
                 {
                     p += strlen((const char *)"Sec-WebSocket-Accept: ");
                     sscanf((const char *)p, "%s\r\n", p);
-                    if(webSocket_matchShakeKey(shakeKey, strlen((const char *)shakeKey), p, strlen((const char *)p)) == 0) // 比对握手信息
-                        return fd; // 连接成功, 返回连接句柄fd
+                    if (webSocket_matchShakeKey(shakeKey, strlen((const char *)shakeKey), p, strlen((const char *)p)) == 0) // 比对握手信息
+                        return fd;                                                                                          // 连接成功, 返回连接句柄fd
                     else
-                        ret = send(fd , loginBuf , strlen((const char*)loginBuf) , MSG_NOSIGNAL);    // 握手信号不对, 重发协议包
+                        ret = send(fd, loginBuf, strlen((const char *)loginBuf), MSG_NOSIGNAL); // 握手信号不对, 重发协议包
                 }
                 else
-                    ret = send(fd , loginBuf , strlen((const char*)loginBuf) , MSG_NOSIGNAL);     // 重发协议包
+                    ret = send(fd, loginBuf, strlen((const char *)loginBuf), MSG_NOSIGNAL); // 重发协议包
             }
-// #ifdef WEBSOCKET_DEBUG
+            // #ifdef WEBSOCKET_DEBUG
             // 显示异常返回数据
             else
             {
-                if(recBuf[0] >= ' ' && recBuf[0] <= '~')
-                    printf("\r\nlogin_recv : %d\r\n%s\r\n" , ret, recBuf); 
+                if (recBuf[0] >= ' ' && recBuf[0] <= '~')
+                    printf("\r\nlogin_recv : %d\r\n%s\r\n", ret, recBuf);
                 else
                 {
-                    printf("\r\nlogin_recv : %d\r\n" , ret); 
-                    for(i = 0; i < ret; i++) 
-                        printf("%.2X ", recBuf[i]); 
+                    printf("\r\nlogin_recv : %d\r\n", ret);
+                    for (i = 0; i < ret; i++)
+                        printf("%.2X ", recBuf[i]);
                     printf("\r\n");
                 }
             }
-// #endif
-		}
-		else if(ret <= 0)
-		    ;
-		if(++timeOut > WEBSOCKET_LOGIN_RESPOND_TIMEOUT)
-		{
-		    close(fd); 
-		    return -timeOut;
-		}
-		webSocket_delayms(1);  //1ms
-	}
+            // #endif
+        }
+        else if (ret <= 0)
+            ;
+        if (++timeOut > WEBSOCKET_LOGIN_RESPOND_TIMEOUT)
+        {
+            close(fd);
+            return -timeOut;
+        }
+        webSocket_delayms(1); //1ms
+    }
     //
-	close(fd); 
-	return -timeOut;
+    close(fd);
+    return -timeOut;
 }
 /*******************************************************************************
  * 名称: webSocket_serverLinkToClient
@@ -1113,14 +1125,14 @@ int webSocket_serverLinkToClient(int fd, char *recvBuf, int bufLen)
     char *p;
     int ret;
     char recvShakeKey[512], respondPackage[1024];
-    if((p = strstr(recvBuf, "Sec-WebSocket-Key: ")) == NULL)
+    if ((p = strstr(recvBuf, "Sec-WebSocket-Key: ")) == NULL)
         return -1;
     p += strlen("Sec-WebSocket-Key: ");
     //
     memset(recvShakeKey, 0, sizeof(recvShakeKey));
-    sscanf(p, "%s", recvShakeKey);      // 取得握手key
+    sscanf(p, "%s", recvShakeKey); // 取得握手key
     ret = strlen(recvShakeKey);
-    if(ret < 1)
+    if (ret < 1)
         return -1;
     //
     memset(respondPackage, 0, sizeof(respondPackage));
@@ -1152,8 +1164,8 @@ int webSocket_send(int fd, char *data, int dataLen, bool isMask, WebsocketData_T
     retLen = webSocket_enPackage((unsigned char *)data, dataLen, webSocketPackage, (dataLen + 128), isMask, type);
     //显示数据
 #ifdef WEBSOCKET_DEBUG
-    printf("webSocket_send : %d\r\n" , retLen);
-    for(i = 0; i < retLen; i ++)  
+    printf("webSocket_send : %d\r\n", retLen);
+    for (i = 0; i < retLen; i++)
         printf("%.2X ", webSocketPackage[i]);
     printf("\r\n");
 #endif
@@ -1177,23 +1189,23 @@ int webSocket_recv(int fd, char *data, int dataMaxLen, WebsocketData_Type *dataT
     int ret, dpRet = WDT_NULL, retTemp, retFinal = 0;
     int retLen = 0, retHeadLen = 0;
     //
-    int timeOut = 0;    //续传时,等待下一包需加时间限制
-    
+    int timeOut = 0; //续传时,等待下一包需加时间限制
+
     recvBuf = (unsigned char *)calloc(dataMaxLen, sizeof(char));
     ret = recv(fd, recvBuf, dataMaxLen, MSG_NOSIGNAL);
     //数据可能超出了范围限制
-    if(ret == dataMaxLen)
+    if (ret == dataMaxLen)
         printf("webSocket_recv : warning !! recv buff too large !! (recv/%d)\r\n", ret);
     //
-    if(ret > 0)
+    if (ret > 0)
     {
         //---------- websocket数据解包 ----------
         webSocketPackage = (unsigned char *)calloc(ret + 128, sizeof(char));
         dpRet = webSocket_dePackage(recvBuf, ret, webSocketPackage, (ret + 128), (unsigned int *)&retLen, (unsigned int *)&retHeadLen);
-        if(dpRet == WDT_ERR && retLen == 0) //非包数据
+        if (dpRet == WDT_ERR && retLen == 0) //非包数据
         {
             memset(data, 0, dataMaxLen);
-            if(ret < dataMaxLen)
+            if (ret < dataMaxLen)
             {
                 memcpy(data, recvBuf, ret);
                 retFinal = -ret;
@@ -1207,36 +1219,41 @@ int webSocket_recv(int fd, char *data, int dataMaxLen, WebsocketData_Type *dataT
         else //正常收包
         {
             //数据可能超出了范围限制
-            if(retLen > dataMaxLen)
+            if (retLen > dataMaxLen)
             {
                 printf("webSocket_recv : warning !! recv package too large !! (recvPackage/%d)\r\n", retLen);
                 goto recv_return_null;
             }
             //显示数据包的头10个字节
 #ifdef WEBSOCKET_DEBUG
-            if(ret > 10)
-                printf("webSocket_recv : ret/%d, dpRet/%d, retLen/%d, head/%d : %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n", 
-                    ret, dpRet, retLen, retHeadLen, 
-                    recvBuf[0], recvBuf[1], recvBuf[2], recvBuf[3], recvBuf[4], 
-                    recvBuf[5], recvBuf[6], recvBuf[7], recvBuf[8], recvBuf[9]);
+            if (ret > 10)
+                printf("webSocket_recv : ret/%d, dpRet/%d, retLen/%d, head/%d : %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n",
+                       ret, dpRet, retLen, retHeadLen,
+                       recvBuf[0], recvBuf[1], recvBuf[2], recvBuf[3], recvBuf[4],
+                       recvBuf[5], recvBuf[6], recvBuf[7], recvBuf[8], recvBuf[9]);
 #endif
-            
+
             //续传? 检查数据包的头10个字节发现recv()时并没有把一包数据接收完,继续接收..
-            if(ret < retHeadLen + retLen)
+            if (ret < retHeadLen + retLen)
             {
-                timeOut = 50;//50*10=500ms等待
-                while(ret < retHeadLen + retLen)
+                timeOut = 50; //50*10=500ms等待
+                while (ret < retHeadLen + retLen)
                 {
                     webSocket_delayms(10);
                     retTemp = recv(fd, &recvBuf[ret], dataMaxLen - ret, MSG_NOSIGNAL);
-                    if(retTemp > 0){
-                        timeOut = 50;//50*10=500ms等待
+                    if (retTemp > 0)
+                    {
+                        timeOut = 50; //50*10=500ms等待
                         ret += retTemp;
-                    }else{
-                        if(errno == EAGAIN || errno == EINTR);//连接中断
-                        else goto recv_return_null;
                     }
-                    if(--timeOut < 1) 
+                    else
+                    {
+                        if (errno == EAGAIN || errno == EINTR)
+                            ; //连接中断
+                        else
+                            goto recv_return_null;
+                    }
+                    if (--timeOut < 1)
                         goto recv_return_null;
                 }
                 //再解包一次
@@ -1244,38 +1261,38 @@ int webSocket_recv(int fd, char *data, int dataMaxLen, WebsocketData_Type *dataT
                 webSocketPackage = (unsigned char *)calloc(ret + 128, sizeof(char));
                 dpRet = webSocket_dePackage(recvBuf, ret, webSocketPackage, (ret + 128), (unsigned int *)&retLen, (unsigned int *)&retHeadLen);
                 //
-                if(ret > 10)
-                    printf("webSocket_recv : ret/%d, dpRet/%d, retLen/%d, head/%d : %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n", 
-                        ret, dpRet, retLen, retHeadLen, 
-                        recvBuf[0], recvBuf[1], recvBuf[2], recvBuf[3], recvBuf[4], 
-                        recvBuf[5], recvBuf[6], recvBuf[7], recvBuf[8], recvBuf[9]);
+                if (ret > 10)
+                    printf("webSocket_recv : ret/%d, dpRet/%d, retLen/%d, head/%d : %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n",
+                           ret, dpRet, retLen, retHeadLen,
+                           recvBuf[0], recvBuf[1], recvBuf[2], recvBuf[3], recvBuf[4],
+                           recvBuf[5], recvBuf[6], recvBuf[7], recvBuf[8], recvBuf[9]);
             }
             //
-            if(retLen > 0)
+            if (retLen > 0)
             {
-                if(dpRet == WDT_PING)
+                if (dpRet == WDT_PING)
                 {
-                    webSocket_send(fd, (char *)webSocketPackage, retLen, true, WDT_PONG);//自动 ping-pong
+                    webSocket_send(fd, (char *)webSocketPackage, retLen, true, WDT_PONG); //自动 ping-pong
                     // 显示数据
-                    printf("webSocket_recv : PING %d\r\n%s\r\n" , retLen, webSocketPackage);
+                    printf("webSocket_recv : PING %d\r\n%s\r\n", retLen, webSocketPackage);
                 }
-                else if(dpRet == WDT_PONG)
+                else if (dpRet == WDT_PONG)
                 {
-                    printf("webSocket_recv : PONG %d\r\n%s\r\n" , retLen, webSocketPackage);
+                    printf("webSocket_recv : PONG %d\r\n%s\r\n", retLen, webSocketPackage);
                 }
                 else //if(dpRet == WDT_TXTDATA || dpRet == WDT_BINDATA || dpRet == WDT_MINDATA)
                 {
                     memcpy(data, webSocketPackage, retLen);
                     // 显示数据
 #ifdef WEBSOCKET_DEBUG
-                    if(webSocketPackage[0] >= ' ' && webSocketPackage[0] <= '~')
-                        printf("\r\nwebSocket_recv : New Package StrFile dpRet:%d/retLen:%d\r\n%s\r\n" , dpRet, retLen, webSocketPackage); 
+                    if (webSocketPackage[0] >= ' ' && webSocketPackage[0] <= '~')
+                        printf("\r\nwebSocket_recv : New Package StrFile dpRet:%d/retLen:%d\r\n%s\r\n", dpRet, retLen, webSocketPackage);
                     else
                     {
-                        printf("\r\nwebSocket_recv : New Package BinFile dpRet:%d/retLen:%d\r\n" , dpRet, retLen); 
+                        printf("\r\nwebSocket_recv : New Package BinFile dpRet:%d/retLen:%d\r\n", dpRet, retLen);
                         int i;
-                        for(i = 0; i < retLen; i++) 
-                            printf("%.2X ", webSocketPackage[i]); 
+                        for (i = 0; i < retLen; i++)
+                            printf("%.2X ", webSocketPackage[i]);
                         printf("\r\n");
                     }
 #endif
@@ -1287,14 +1304,14 @@ int webSocket_recv(int fd, char *data, int dataMaxLen, WebsocketData_Type *dataT
             else
             {
                 // 显示数据
-                if(recvBuf[0] >= ' ' && recvBuf[0] <= '~') 
-                    printf("\r\nwebSocket_recv : ret:%d/dpRet:%d/retLen:%d\r\n%s\r\n" , ret, dpRet, retLen, recvBuf); 
-                else 
+                if (recvBuf[0] >= ' ' && recvBuf[0] <= '~')
+                    printf("\r\nwebSocket_recv : ret:%d/dpRet:%d/retLen:%d\r\n%s\r\n", ret, dpRet, retLen, recvBuf);
+                else
                 {
-                    printf("\r\nwebSocket_recv : ret:%d/dpRet:%d/retLen:%d\r\n%s\r\n" , ret, dpRet, retLen, recvBuf); 
+                    printf("\r\nwebSocket_recv : ret:%d/dpRet:%d/retLen:%d\r\n%s\r\n", ret, dpRet, retLen, recvBuf);
                     int i;
-                    for(i = 0; i < ret; i++) 
-                        printf("%.2X ", recvBuf[i]); 
+                    for (i = 0; i < ret; i++)
+                        printf("%.2X ", recvBuf[i]);
                     printf("\r\n");
                 }
             }
@@ -1302,15 +1319,21 @@ int webSocket_recv(int fd, char *data, int dataMaxLen, WebsocketData_Type *dataT
         }
     }
 
-    if(recvBuf) free(recvBuf);
-    if(webSocketPackage) free(webSocketPackage);
-    if(dataType) *dataType = dpRet;
+    if (recvBuf)
+        free(recvBuf);
+    if (webSocketPackage)
+        free(webSocketPackage);
+    if (dataType)
+        *dataType = dpRet;
     return retFinal;
 
 recv_return_null:
 
-    if(recvBuf) free(recvBuf);
-    if(webSocketPackage) free(webSocketPackage);
-    if(dataType) *dataType = dpRet;
+    if (recvBuf)
+        free(recvBuf);
+    if (webSocketPackage)
+        free(webSocketPackage);
+    if (dataType)
+        *dataType = dpRet;
     return 0;
 }
