@@ -4,7 +4,7 @@
 
 # 测试
 
-* 方法一: 先 ./server_process & 把服务器抛后台, 再运行客户端 client_process
+* 方法一: 先 ./server_process & 把服务器抛后台, 再运行客户端 ./client_process
 
 * 方法二: 直接运行测试脚本 ./start_test.sh &, 想提前停止测试则运行 ./kill_test.sh
 
