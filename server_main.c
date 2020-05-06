@@ -5,6 +5,7 @@
 #include <stdlib.h> //exit()
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
 #include <fcntl.h> // 非阻塞宏
 #include <sys/ioctl.h>
 #include <sys/epoll.h> // epoll管理服务器的连接和接收触发
@@ -58,9 +59,9 @@ int arrayRemoveItem(int array[][2], int arraySize, int value)
 // Server Function
 void server_thread_fun(void *arge)
 {
-    int ret, i, j;
+    int ret, j;
     int accept_fd;
-    int socAddrLen;
+    socklen_t socAddrLen;
     struct sockaddr_in acceptAddr;
     struct sockaddr_in serverAddr;
     //
@@ -142,7 +143,7 @@ void server_thread_fun(void *arge)
             {
                 //printf("server epoll err !\r\n");
                 //exit(1);
-                printf("accept close : %d / %d\r\n", events[j].data.fd); // 与客户端连接出错, 主动断开当前 连接
+                printf("accept close : %d\r\n", events[j].data.fd); // 与客户端连接出错, 主动断开当前 连接
                                                                          // 向epoll删除client_sockfd监听事件
                                                                          //ev.events = EPOLLIN|EPOLLET;
                 ev.data.fd = events[j].data.fd;

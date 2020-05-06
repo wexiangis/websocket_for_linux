@@ -6,6 +6,7 @@
 #include <string.h> // 使用 malloc, calloc等动态分配内存方法
 #include <time.h>   // 获取系统时间
 #include <errno.h>
+#include <pthread.h>
 #include <fcntl.h> // 非阻塞
 #include <sys/un.h>
 #include <arpa/inet.h>  // inet_addr()
