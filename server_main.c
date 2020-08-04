@@ -11,19 +11,25 @@
 #include <sys/epoll.h> // epoll管理服务器的连接和接收触发
 #include <sys/socket.h>
 #include <netinet/ip.h>
+#include <arpa/inet.h>
 #include <pthread.h> // 使用多线程
 
 #define EPOLL_RESPOND_NUM 10000 // epoll最大同时管理句柄数量
 
-typedef struct WebSocketServer
+#define SERVER_IP "127.0.0.1"
+#define SERVER_PORT 9999
+
+#define SERVER_PKG_MAX 102400 //服务器收包缓冲区大小
+
+typedef struct WebsocketServer
 {
     int fd;
     int client_fd_array[EPOLL_RESPOND_NUM][2];
     char ip[24];
     int port;
-    char buf[102400];
-    int (*callBack)(struct WebSocketServer *wss, int fd, char *buf, unsigned int bufLen);
-} WebSocket_Server;
+    char buf[SERVER_PKG_MAX];
+    int (*callBack)(struct WebsocketServer *wss, int fd, char *buf, unsigned int bufLen);
+} Websocket_Server;
 
 // Tool Function
 int arrayAddItem(int array[][2], int arraySize, int value)
@@ -65,12 +71,12 @@ void server_thread_fun(void *arge)
     struct sockaddr_in acceptAddr;
     struct sockaddr_in serverAddr;
     //
-    WebSocket_Server *wss = (WebSocket_Server *)arge;
+    Websocket_Server *wss = (Websocket_Server *)arge;
     //
     memset(&serverAddr, 0, sizeof(serverAddr)); // 数据初始化--清零
     serverAddr.sin_family = AF_INET;            // 设置为IP通信
-    //serverAddr.sin_addr.s_addr = inet_addr(wss->ip);// 服务器IP地址
-    serverAddr.sin_addr.s_addr = INADDR_ANY; // 服务器IP地址
+    serverAddr.sin_addr.s_addr = inet_addr(wss->ip);// 服务器IP地址
+    //serverAddr.sin_addr.s_addr = INADDR_ANY; // 服务器IP地址
     serverAddr.sin_port = htons(wss->port);  // 服务器端口号
     //
     socAddrLen = sizeof(struct sockaddr_in);
@@ -214,7 +220,7 @@ void server_thread_fun(void *arge)
 }
 
 //
-int server_callBack(WebSocket_Server *wss, int fd, char *buf, unsigned int bufLen)
+int server_callBack(Websocket_Server *wss, int fd, char *buf, unsigned int bufLen)
 {
     int ret;
     ret = webSocket_recv(fd, buf, bufLen, NULL); // 使用websocket recv
@@ -250,12 +256,12 @@ int main(void)
     int exitFlag;
     int i, client_fd;
     pthread_t sever_thread_id;
-    WebSocket_Server wss;
+    Websocket_Server wss;
 
     //===== 初始化服务器参数 =====
     memset(&wss, 0, sizeof(wss));
-    //strcpy(wss.ip, "127.0.0.1");
-    wss.port = 9999;
+    strcpy(wss.ip, SERVER_IP);
+    wss.port = SERVER_PORT;
     wss.callBack = &server_callBack; // 响应客户端时, 需要干嘛?
 
     //===== 开辟线程, 管理服务器 =====

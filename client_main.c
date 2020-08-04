@@ -7,8 +7,8 @@
 #include <errno.h>
 #include <unistd.h> //getpid
 
-char ip[24] = {0}; //"172.16.23.160";// 本机IP
-int port = 9999;
+#define SERVER_IP "127.0.0.1"
+#define SERVER_PORT 9999
 
 int main(void)
 {
@@ -20,10 +20,10 @@ int main(void)
     pid = getpid();
     printf("\r\n========== client(%d) start ! ==========\r\n\r\n", pid);
     //
-    netCheck_getIP("eth0", ip);
-    if ((fd = webSocket_clientLinkToServer(ip, port, "/null")) <= 0)
+    //netCheck_getIP("eth0", ip);
+    if ((fd = webSocket_clientLinkToServer(SERVER_IP, SERVER_PORT, "/null")) <= 0)
     {
-        printf("client link to server failed !\r\n");
+        printf("client link to server failed ! %d\r\n", fd);
         return -1;
     }
     webSocket_delayms(100);
