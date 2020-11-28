@@ -2,37 +2,52 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h> // 使用 malloc, calloc等动态分配内存方法
-#include <time.h>   // 获取系统时间
+#include <string.h> //使用 malloc, calloc等动态分配内存方法
+#include <time.h>   //获取系统时间
 #include <errno.h>
 #include <pthread.h>
-#include <fcntl.h> // 非阻塞
+#include <fcntl.h> //非阻塞
 #include <sys/un.h>
-#include <arpa/inet.h>  // inet_addr()
-#include <unistd.h>     // close()
-#include <sys/types.h>  // 文件IO操作
+#include <arpa/inet.h>  //inet_addr()
+#include <unistd.h>     //close()
+#include <sys/types.h>  //文件IO操作
 #include <sys/socket.h> //
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
-#include <netdb.h> // gethostbyname, gethostbyname2, gethostbyname_r, gethostbyname_r2
+#include <netdb.h> //gethostbyname, gethostbyname2, gethostbyname_r, gethostbyname_r2
 #include <sys/un.h>
-#include <sys/time.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <sys/ioctl.h> // SIOCSIFADDR
+#include <sys/ioctl.h> //SIOCSIFADDR
 
 #include "ws_com.h"
 
-// 生成握手key的长度
+//生成握手key的长度
 #define WEBSOCKET_SHAKE_KEY_LEN 16
 
+#include <sys/time.h>
 void ws_delayms(int ms)
 {
     struct timeval tim;
     tim.tv_sec = ms / 1000;
     tim.tv_usec = ms % 1000 * 1000;
     select(0, NULL, NULL, NULL, &tim);
+}
+char *ws_time(void)
+{
+    static char timeStr[9];
+    struct timeval tv = {0};
+    long hour;
+    gettimeofday(&tv, NULL);
+    hour = tv.tv_sec % 86400 / 3600 + 8;
+    if (hour > 23)
+        hour -= 24;
+    snprintf(timeStr, sizeof(timeStr), "%02ld:%02ld:%02ld",
+             hour,
+             tv.tv_sec % 3600 / 60,
+             tv.tv_sec % 60);
+    return timeStr;
 }
 
 //==================== 域名转IP ====================
@@ -110,9 +125,9 @@ int ws_getIpByHostName(char *hostName, char *backIp)
             if (++timeoutCount > 1000)
                 break;
         }
-        ws_delayms(1000); // 1ms延时
+        ws_delayms(1000); //1ms延时
     }
-    // pthread_cancel(gs.thread_id);
+    //pthread_cancel(gs.thread_id);
     pthread_join(gs.thread_id, NULL);
     if (!gs.result)
         return -timeoutCount;
@@ -404,7 +419,7 @@ void SHA1Input(SHA1Context *context, const char *message_array, uint32_t length)
     }
 }
 
-/* int32_t sha1_hash(const char *source, char *lrvar){// Main 
+/* int32_t sha1_hash(const char *source, char *lrvar){//Main 
     SHA1Context sha; 
     char buf[128]; 
  
@@ -500,7 +515,7 @@ int32_t htoi(const char s[], int32_t start, int32_t len)
  * 名称: ws_getRandomString
  * 功能: 生成随机字符串
  * 参数: 
- *      buff：随机字符串存储到
+ *      buff: 随机字符串存储到
  *      len: 生成随机字符串长度
  * 返回: 无
  * 说明: 无
@@ -513,7 +528,7 @@ void ws_getRandomString(char *buff, uint32_t len)
     for (i = 0; i < len; i++)
     {
         temp = (unsigned char)(rand() % 256);
-        if (temp == 0) // 随机数不要0, 0 会干扰对字符串长度的判断
+        if (temp == 0) //随机数不要0, 0 会干扰对字符串长度的判断
             temp = 128;
         buff[i] = temp;
     }
@@ -522,7 +537,7 @@ void ws_getRandomString(char *buff, uint32_t len)
 /*******************************************************************************
  * 名称: ws_buildShakeKey
  * 功能: client端使用随机数构建握手用的key
- * 参数: *key：随机生成的握手key
+ * 参数: *key: 随机生成的握手key
  * 返回: key的长度
  * 说明: 无
  ******************************************************************************/
@@ -537,7 +552,7 @@ int32_t ws_buildShakeKey(char *key)
  * 名称: ws_buildRespondShakeKey
  * 功能: server端在接收client端的key后,构建回应用的key
  * 参数:
- *      acceptKey：来自客户端的key字符串
+ *      acceptKey: 来自客户端的key字符串
  *      acceptKeyLen: 长度
  *      respondKey:  在 acceptKey 之后加上 GUID, 再sha1哈希, 再转成base64得到 respondKey
  * 返回: respondKey的长度(肯定比acceptKey要长)
@@ -581,7 +596,7 @@ int32_t ws_buildRespondShakeKey(char *acceptKey, uint32_t acceptKeyLen, char *re
  * 名称: ws_matchShakeKey
  * 功能: client端收到来自服务器回应的key后进行匹配,以验证握手成功
  * 参数:
- *      myKey：client端请求握手时发给服务器的key
+ *      myKey: client端请求握手时发给服务器的key
  *      myKeyLen: 长度
  *      acceptKey: 服务器回应的key
  *      acceptKeyLen: 长度
@@ -613,7 +628,7 @@ int32_t ws_matchShakeKey(char *myKey, uint32_t myKeyLen, char *acceptKey, uint32
  * 名称: ws_buildHttpHead
  * 功能: 构建client端连接服务器时的http协议头, 注意websocket是GET形式的
  * 参数:
- *      ip：要连接的服务器ip字符串
+ *      ip: 要连接的服务器ip字符串
  *      port: 服务器端口
  *      path: 要连接的端口地址
  *      shakeKey: 握手key, 可以由任意的16位字符串打包成base64后得到
@@ -637,7 +652,7 @@ void ws_buildHttpHead(char *ip, int32_t port, char *path, char *shakeKey, char *
  * 名称: ws_buildHttpRespond
  * 功能: 构建server端回复client连接请求的http协议
  * 参数:
- *      acceptKey：来自client的握手key
+ *      acceptKey: 来自client的握手key
  *      acceptKeyLen: 长度
  *      package: 存储
  * 返回: 无
@@ -651,18 +666,18 @@ void ws_buildHttpRespond(char *acceptKey, uint32_t acceptKeyLen, char *package)
         "Server: Microsoft-HTTPAPI/2.0\r\n"
         "Connection: Upgrade\r\n"
         "Sec-WebSocket-Accept: %s\r\n"
-        "%s\r\n\r\n"; // 时间打包待续, 格式如 "Date: Tue, 20 Jun 2017 08:50:41 CST\r\n"
+        "%s\r\n\r\n"; //时间打包待续, 格式如 "Date: Tue, 20 Jun 2017 08:50:41 CST\r\n"
     time_t now;
     struct tm *tm_now;
     char timeStr[256] = {0};
     char respondShakeKey[256] = {0};
-    // 构建回应的握手key
+    //构建回应的握手key
     ws_buildRespondShakeKey(acceptKey, acceptKeyLen, respondShakeKey);
-    // 构建回应时间字符串
+    //构建回应时间字符串
     time(&now);
     tm_now = localtime(&now);
     strftime(timeStr, sizeof(timeStr), "Date: %a, %d %b %Y %T %Z", tm_now);
-    // 组成回复信息
+    //组成回复信息
     sprintf(package, httpDemo, respondShakeKey, timeStr);
 }
 
@@ -670,29 +685,33 @@ void ws_buildHttpRespond(char *acceptKey, uint32_t acceptKeyLen, char *package)
  * 名称: ws_enPackage
  * 功能: websocket数据收发阶段的数据打包, 通常client发server的数据都要mask(掩码)处理, 反之server到client却不用
  * 参数:
- *      data：准备发出的数据
+ *      data: 准备发出的数据
  *      dataLen: 长度
  *      package: 打包后存储地址
  *      packageMaxLen: 存储地址可用长度
  *      mask: 是否使用掩码     1要   0 不要
  *      type: 数据类型, 由打包后第一个字节决定, 这里默认是数据传输, 即0x81
- * 返回: 打包后的长度(会比原数据长2~16个字节不等)      <=0 打包失败 
+ * 返回: 打包后的长度(会比原数据长2~14个字节不等) <=0 打包失败 
  * 说明: 无
  ******************************************************************************/
 int32_t ws_enPackage(
-    unsigned char *data, uint32_t dataLen,
-    unsigned char *package, uint32_t packageMaxLen,
-    bool mask, WsData_Type type)
+    unsigned char *data,
+    uint32_t dataLen,
+    unsigned char *package,
+    uint32_t packageMaxLen,
+    bool mask,
+    WsData_Type type)
 {
-    unsigned char maskKey[4] = {0}; // 掩码
-    int32_t count;
-    uint32_t i, len = 0;
+    uint32_t i, pkgLen = 0;
+    //掩码
+    unsigned char maskKey[4] = {0};
+    uint32_t maskCount = 0;
     //最小长度检查
     if (packageMaxLen < 2)
         return -1;
     //根据包类型设置头字节
     if (type == WDT_MINDATA)
-        *package++ = 0x00;
+        *package++ = 0x80;
     else if (type == WDT_TXTDATA)
         *package++ = 0x81;
     else if (type == WDT_BINDATA)
@@ -705,15 +724,15 @@ int32_t ws_enPackage(
         *package++ = 0x8A;
     else
         return -1;
+    pkgLen += 1;
     //掩码位
     if (mask)
         *package = 0x80;
-    len += 1;
     //半字节记录长度
     if (dataLen < 126)
     {
         *package++ |= (dataLen & 0x7F);
-        len += 1;
+        pkgLen += 1;
     }
     //2字节记录长度
     else if (dataLen < 65536)
@@ -723,28 +742,29 @@ int32_t ws_enPackage(
         *package++ |= 0x7E;
         *package++ = (unsigned char)((dataLen >> 8) & 0xFF);
         *package++ = (unsigned char)((dataLen >> 0) & 0xFF);
-        len += 3;
+        pkgLen += 3;
     }
     //8字节记录长度
-    else if (dataLen < 0xFFFFFFFF)
+    else
     {
         if (packageMaxLen < 10)
             return -1;
         *package++ |= 0x7F;
-        *package++ = 0;                                 //(unsigned char)((dataLen >> 56) & 0xFF); // 数据长度变量是 uint32_t dataLen, 暂时没有那么多数据
-        *package++ = 0;                                 //(unsigned char)((dataLen >> 48) & 0xFF);
-        *package++ = 0;                                 //(unsigned char)((dataLen >> 40) & 0xFF);
-        *package++ = 0;                                 //(unsigned char)((dataLen >> 32) & 0xFF);
-        *package++ = (unsigned char)((dataLen >> 24) & 0xFF); // 到这里就够传4GB数据了
+        *package++ = 0; //数据长度变量是 uint32_t dataLen, 暂时没有那么多数据
+        *package++ = 0;
+        *package++ = 0;
+        *package++ = 0;
+        *package++ = (unsigned char)((dataLen >> 24) & 0xFF); //到这里就够传4GB数据了
         *package++ = (unsigned char)((dataLen >> 16) & 0xFF);
         *package++ = (unsigned char)((dataLen >> 8) & 0xFF);
         *package++ = (unsigned char)((dataLen >> 0) & 0xFF);
-        len += 9;
+        pkgLen += 9;
     }
-    // 数据使用掩码时,使用异或解码,maskKey[4]依次和数据异或运算,逻辑如下
+    //数据使用掩码时,使用异或解码,maskKey[4]依次和数据异或运算,逻辑如下
     if (mask)
     {
-        if (packageMaxLen < len + dataLen + 4)
+        //长度不足
+        if (packageMaxLen < pkgLen + dataLen + 4)
             return -1;
         //随机生成掩码
         ws_getRandomString((char *)maskKey, sizeof(maskKey));
@@ -752,105 +772,112 @@ int32_t ws_enPackage(
         *package++ = maskKey[1];
         *package++ = maskKey[2];
         *package++ = maskKey[3];
-        len += 4;
-        for (i = 0, count = 0; i < dataLen; i++)
+        pkgLen += 4;
+        for (i = 0, maskCount = 0; i < dataLen; i++, maskCount++)
         {
-            //异或运算后得到数据
-            *package++ = maskKey[count] ^ data[i];
-            count += 1;
             //maskKey[4]循环使用
-            if (count >= sizeof(maskKey))
-                count = 0;
+            if (maskCount == 4) //sizeof(maskKey))
+                maskCount = 0;
+            //异或运算后得到数据
+            *package++ = maskKey[maskCount] ^ data[i];
         }
-        len += i;
-        *package = '\0';
+        pkgLen += i;
+        *package = '\0'; //断尾
     }
-    // 数据没使用掩码, 直接复制数据段
+    //数据没使用掩码, 直接复制数据段
     else
     {
-        if (packageMaxLen < len + dataLen)
+        //长度不足
+        if (packageMaxLen < pkgLen + dataLen)
             return -1;
         memcpy(package, data, dataLen);
-        package[dataLen] = '\0';
-        len += dataLen;
+        package[dataLen] = '\0'; //断尾
+        pkgLen += dataLen;
     }
 
-    return len;
+    return pkgLen;
 }
 
 /*******************************************************************************
  * 名称: ws_dePackage
- * 功能: websocket数据收发阶段的数据解包, 通常client发server的数据都要mask(掩码)处理, 反之server到client却不用
+ * 功能: websocket数据收发阶段的数据解包,通常client发server的数据都要mask(掩码)处理,反之server到client却不用
  * 参数:
- *      data：解包的数据
- *      dataLen: 长度
- *      package: 解包后存储地址
- *      packageMaxLen: 存储地址可用长度
- *      packageLen: 解包所得长度
- * 返回: 解包识别的数据类型 如: txt数据, bin数据, ping, pong等
- * 说明: 无
+ *      data: 要解包的数据,解包后的数据会覆写到这里
+ *      len: 要解包的数据的长度
+ *      retDataLen: 解包数据段长度信息
+ *      retHeadLen: 解包头部长度信息
+ *      retPkgType: 识别包类型
+ * 返回:
+ *      0: 格式错误,非标准数据包数据
+ *      <0: 识别包但不完整(能解析类型、掩码、长度),返回缺少的数据量(负值)
+ *      >0: 解包数据成功,返回数据长度,等于retDataLen
+ * 说明:
+ *      建议recv时先接收14字节然后解包,根据返回缺失长度再recv一次,最后再解包,这样可有效避免连包时只解析到一包的问题
  ******************************************************************************/
-WsData_Type ws_dePackage(
-    unsigned char *data, uint32_t dataLen,
-    unsigned char *package, uint32_t packageMaxLen,
-    uint32_t *packageLen, uint32_t *packageHeadLen)
+int32_t ws_dePackage(
+    unsigned char *data,
+    uint32_t len,
+    uint32_t *retDataLen,
+    uint32_t *retHeadLen,
+    WsData_Type *retPkgType)
 {
-    unsigned char maskKey[4] = {0}; // 掩码
-    char mask = 0, type;
-    int32_t count, ret;
-    uint32_t i, len = 0, dataOffset = 2;
-
-    if (dataLen < 2)
-        return WDT_ERR;
+    uint32_t cIn, cOut;
+    //包类型
+    uint8_t type;
+    //数据段起始位置
+    uint32_t dataOffset = 2;
+    //数据段长度
+    uint32_t dataLen = 0;
+    //掩码
+    unsigned char maskKey[4] = {0};
+    bool mask = false;
+    uint8_t maskCount = 0;
+    //数据长度过短
+    if (len < 2)
+        return 0;
     //解析包类型
-    type = data[0] & 0x0F;
     if ((data[0] & 0x80) == 0x80)
     {
-        if (type == 0x01)
-            ret = WDT_TXTDATA;
+        type = data[0] & 0x0F;
+        if (type == 0x00)
+            *retPkgType = WDT_MINDATA;
+        else if (type == 0x01)
+            *retPkgType = WDT_TXTDATA;
         else if (type == 0x02)
-            ret = WDT_BINDATA;
+            *retPkgType = WDT_BINDATA;
         else if (type == 0x08)
-            ret = WDT_DISCONN;
+            *retPkgType = WDT_DISCONN;
         else if (type == 0x09)
-            ret = WDT_PING;
+            *retPkgType = WDT_PING;
         else if (type == 0x0A)
-            ret = WDT_PONG;
+            *retPkgType = WDT_PONG;
         else
-            return WDT_ERR;
+            return 0;
     }
-    else if (type == 0x00)
-        ret = WDT_MINDATA;
     else
-        return WDT_ERR;
+        return 0;
     //是否掩码,及长度占用字节数
     if ((data[1] & 0x80) == 0x80)
     {
-        mask = 1;
-        count = 4;
+        mask = true;
+        maskCount = 4;
     }
-    else
-    {
-        mask = 0;
-        count = 0;
-    }
-    len = data[1] & 0x7F;
     //2字节记录长度
-    if (len == 126)
+    dataLen = data[1] & 0x7F;
+    if (dataLen == 126)
     {
-        //数据长度不足
-        if (dataLen < 4)
-            return WDT_ERR;
+        //数据长度不足以包含长度信息
+        if (len < 4)
+            return 0;
         //2字节记录长度
-        len = data[2];
-        len = (len << 8) + data[3];
-        if (packageLen)
-            *packageLen = len; //转储包长度
-        if (packageHeadLen)
-            *packageHeadLen = 4 + count;
-        //数据长度不足
-        if (dataLen < len + 4 + count)
-            return WDT_ERR;
+        dataLen = data[2];
+        dataLen = (dataLen << 8) + data[3];
+        //转储长度信息
+        *retDataLen = dataLen;
+        *retHeadLen = 4 + maskCount;
+        //数据长度不足以包含掩码信息
+        if (len < 4 + maskCount)
+            return -(int32_t)(4 + maskCount + dataLen - len);
         //获得掩码
         if (mask)
         {
@@ -864,27 +891,25 @@ WsData_Type ws_dePackage(
             dataOffset = 4;
     }
     //8字节记录长度
-    else if (len == 127)
+    else if (dataLen == 127)
     {
-        //数据长度不足
-        if (dataLen < 10)
-            return WDT_ERR;
+        //数据长度不足以包含长度信息
+        if (len < 10)
+            return 0;
         //使用8个字节存储长度时,前4位必须为0,装不下那么多数据...
         if (data[2] != 0 || data[3] != 0 || data[4] != 0 || data[5] != 0)
-            return WDT_ERR;
+            return 0;
         //8字节记录长度
-        len = data[6];
-        len = (len << 8) + data[7];
-        len = (len << 8) + data[8];
-        len = (len << 8) + data[9];
-        //转储包长度
-        if (packageLen)
-            *packageLen = len;
-        if (packageHeadLen)
-            *packageHeadLen = 10 + count;
-        //数据长度不足
-        if (dataLen < len + 10 + count)
-            return WDT_ERR;
+        dataLen = data[6];
+        dataLen = (dataLen << 8) | data[7];
+        dataLen = (dataLen << 8) | data[8];
+        dataLen = (dataLen << 8) | data[9];
+        //转储长度信息
+        *retDataLen = dataLen;
+        *retHeadLen = 10 + maskCount;
+        //数据长度不足以包含掩码信息
+        if (len < 10 + maskCount)
+            return -(int32_t)(10 + maskCount + dataLen - len);
         //获得掩码
         if (mask)
         {
@@ -900,14 +925,12 @@ WsData_Type ws_dePackage(
     //半字节记录长度
     else
     {
-        //转储包长度
-        if (packageLen)
-            *packageLen = len;
-        if (packageHeadLen)
-            *packageHeadLen = 2 + count;
+        //转储长度信息
+        *retDataLen = dataLen;
+        *retHeadLen = 2 + maskCount;
         //数据长度不足
-        if (dataLen < len + 2 + count)
-            return WDT_ERR;
+        if (len < 2 + maskCount)
+            return -(int32_t)(2 + maskCount + dataLen - len);
         //获得掩码
         if (mask)
         {
@@ -920,41 +943,42 @@ WsData_Type ws_dePackage(
         else
             dataOffset = 2;
     }
-    //数据长度不足
-    if (dataLen < len + dataOffset)
-        return WDT_ERR;
-    //收包地址不足以存下这包数据
-    if (packageMaxLen < len + 1)
-        return WDT_ERR;
-    // 解包数据使用掩码时, 使用异或解码, maskKey[4]依次和数据异或运算, 逻辑如下
+    //数据长度不足以包含完整数据段
+    if (len < dataLen + dataOffset)
+        return -(int32_t)(dataLen + dataOffset - len);
+    //解包数据使用掩码时, 使用异或解码, maskKey[4]依次和数据异或运算, 逻辑如下
     if (mask)
     {
-        for (i = 0, count = 0; i < len; i++)
+        cIn = dataOffset;
+        cOut = 0;
+        maskCount = 0;
+        for (; cOut < dataLen; cIn++, cOut++, maskCount++)
         {
-            // 异或运算后得到数据
-            *package++ = maskKey[count] ^ data[i + dataOffset];
-            count += 1;
-            // maskKey[4]循环使用
-            if (count >= sizeof(maskKey))
-                count = 0;
+            //maskKey[4]循环使用
+            if (maskCount == 4) //sizeof(maskKey))
+                maskCount = 0;
+            //异或运算后得到数据
+            data[cOut] = maskKey[maskCount] ^ data[cIn];
         }
-        *package = '\0';
+        data[cOut] = '\0'; //断尾
     }
-    // 解包数据没使用掩码, 直接复制数据段
+    //解包数据没使用掩码, 直接复制数据段
     else
     {
-        memcpy(package, &data[dataOffset], len);
-        package[len] = '\0';
+        memcpy(data, &data[dataOffset], dataLen);
+        data[dataLen] = '\0'; //断尾
     }
-
-    return ret;
+    //有些特殊包数据段长度可能为0,这里为区分格式错误返回,置为1
+    if (dataLen == 0)
+        dataLen = 1;
+    return dataLen;
 }
 
 /*******************************************************************************
  * 名称: ws_connectToServer
  * 功能: 向websocket服务器发送http(携带握手key), 以和服务器构建连接, 非阻塞模式
  * 参数:
- *      ip： 服务器ip
+ *      ip: 服务器ip
  *      port: 服务器端口
  *      path: 接口地址
  *      timeoutMs: connect阶段超时设置,接收阶段为timeoutMs*2,写0使用默认值1000
@@ -965,20 +989,19 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
 {
     int32_t ret, fd;
     int32_t timeoutCount = 0;
-    int32_t i;
     char retBuff[512] = {0};
     char httpHead[512] = {0};
     char shakeKey[128] = {0};
-    char *p;
     char tempIp[128] = {0};
+    char *p;
 
     //服务器端网络地址结构体
     struct sockaddr_in report_addr;
-    memset(&report_addr, 0, sizeof(report_addr)); // 数据初始化--清零
-    report_addr.sin_family = AF_INET;             // 设置为IP通信
-    report_addr.sin_port = htons(port);           // 服务器端口号
+    memset(&report_addr, 0, sizeof(report_addr)); //数据初始化--清零
+    report_addr.sin_family = AF_INET;             //设置为IP通信
+    report_addr.sin_port = htons(port);           //服务器端口号
 
-    // 服务器IP地址, 自动域名转换
+    //服务器IP地址, 自动域名转换
     //report_addr.sin_addr.s_addr = inet_addr(ip);
     if ((report_addr.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE)
     {
@@ -1007,11 +1030,11 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
         return -1;
     }
 
-    // 测试 -----  创建握手key 和 匹配返回key
-    // ws_buildShakeKey(shakeKey);
-    // printf("key1:%s\r\n", shakeKey);
-    // ws_buildRespondShakeKey(shakeKey, strlen(shakeKey), shakeKey);
-    // printf("key2:%s\r\n", shakeKey);
+    //测试 -----  创建握手key 和 匹配返回key
+    //ws_buildShakeKey(shakeKey);
+    //printf("key1:%s\r\n", shakeKey);
+    //ws_buildRespondShakeKey(shakeKey, strlen(shakeKey), shakeKey);
+    //printf("key2:%s\r\n", shakeKey);
 
     //非阻塞
     ret = fcntl(fd, F_GETFL, 0);
@@ -1032,9 +1055,9 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
 
     //发送http协议头
     memset(shakeKey, 0, sizeof(shakeKey));
-    ws_buildShakeKey(shakeKey);                                     // 创建握手key
-    memset(httpHead, 0, sizeof(httpHead));                          // 创建协议包
-    ws_buildHttpHead(ip, port, path, shakeKey, (char *)httpHead); // 组装http请求头
+    ws_buildShakeKey(shakeKey);                                   //创建握手key
+    memset(httpHead, 0, sizeof(httpHead));                        //创建协议包
+    ws_buildHttpHead(ip, port, path, shakeKey, (char *)httpHead); //组装http请求头
     send(fd, httpHead, strlen((const char *)httpHead), MSG_NOSIGNAL);
 
 #ifdef WS_DEBUG
@@ -1042,59 +1065,57 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
 #endif
     while (1)
     {
+        ws_delayms(1);
+
         memset(retBuff, 0, sizeof(retBuff));
         ret = recv(fd, retBuff, sizeof(retBuff), MSG_NOSIGNAL);
         if (ret > 0)
         {
-            // 返回的是http回应信息
+#ifdef WS_DEBUG
+            //显示http返回
+            printf("ws_connectToServer: %d / %dms\r\n%s\r\n", ret, timeoutCount, retBuff);
+#endif
+            //返回的是http回应信息
             if (strncmp((const char *)retBuff, "HTTP", strlen("HTTP")) == 0)
             {
-#ifdef WS_DEBUG
-                //显示http返回
-                printf("ws_connectToServer: %d / %dms\r\n%s\r\n", ret, timeoutCount, retBuff);
-#endif
-                // 定位到握手字符串
+                //定位到握手字符串
                 if ((p = strstr((char *)retBuff, "Sec-WebSocket-Accept: ")) != NULL)
                 {
                     p += strlen("Sec-WebSocket-Accept: ");
                     sscanf((const char *)p, "%s\r\n", p);
-                    // 比对握手信息
+                    //比对握手信息
                     if (ws_matchShakeKey(shakeKey, strlen((const char *)shakeKey), p, strlen((const char *)p)) == 0)
                         return fd;
-                    // 握手信号不对, 重发协议包
+                    //握手信号不对, 重发协议包
                     else
                         ret = send(fd, httpHead, strlen((const char *)httpHead), MSG_NOSIGNAL);
                 }
-                // 重发协议包
+                //重发协议包
                 else
                     ret = send(fd, httpHead, strlen((const char *)httpHead), MSG_NOSIGNAL);
             }
-            // 显示异常返回数据
+            //显示异常返回数据
             else
             {
-                // #ifdef WS_DEBUG
+                //#ifdef WS_DEBUG
                 if (retBuff[0] >= ' ' && retBuff[0] <= '~')
                     printf("ws_connectToServer: %d\r\n%s\r\n", ret, retBuff);
                 else
                 {
+                    p = retBuff;
                     printf("ws_connectToServer: %d\r\n", ret);
-                    for (i = 0; i < ret; i++)
-                        printf("%.2X ", retBuff[i]);
+                    while (*p)
+                        printf("%.2X ", *p++);
                     printf("\r\n");
                 }
-                // #endif
+                //#endif
             }
         }
-        else if (ret <= 0)
-            ;
+        //超时检查
         if (++timeoutCount > timeoutMs * 2)
-        {
-            close(fd);
-            return -timeoutCount;
-        }
-        ws_delayms(1);
+            break;
     }
-
+    //连接失败,返回耗时(负值)
     close(fd);
     return -timeoutCount;
 }
@@ -1103,24 +1124,28 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
  * 名称: ws_responseClient
  * 功能: 服务器回复客户端的连接请求, 以建立websocket连接
  * 参数:
- *      fd：连接控制符
- *      recvBuf: 接收到来自客户端的数据(内含http连接请求)
- *      bufLen: 
+ *      fd: 连接控制符
+ *      data: 接收到来自客户端的数据(内含http连接请求)
+ *      dataLen: 
+ *      path: path匹配检查,不用可以置NULL
  * 返回: >0 建立websocket连接成功 <=0 建立websocket连接失败
  * 说明: 无
  ******************************************************************************/
-int ws_responseClient(int fd, char *recvBuf, int bufLen)
+int ws_responseClient(int fd, char *data, int dataLen, char *path)
 {
-    char *p;
+    char *keyOffset;
     int32_t ret;
     char recvShakeKey[512] = {0};
     char respondPackage[1024] = {0};
-    //获取握手key
-    if ((p = strstr((char *)recvBuf, "Sec-WebSocket-Key: ")) == NULL)
+    //path检查
+    if (path && !strstr((char *)data, path))
         return -1;
     //获取握手key
-    p += strlen("Sec-WebSocket-Key: ");
-    sscanf((const char *)p, "%s", recvShakeKey);
+    if (!(keyOffset = strstr((char *)data, "Sec-WebSocket-Key: ")))
+        return -1;
+    //获取握手key
+    keyOffset += strlen("Sec-WebSocket-Key: ");
+    sscanf((const char *)keyOffset, "%s", recvShakeKey);
     ret = strlen((const char *)recvShakeKey);
     if (ret < 1)
         return -1;
@@ -1133,7 +1158,7 @@ int ws_responseClient(int fd, char *recvBuf, int bufLen)
  * 名称: ws_send
  * 功能: websocket数据基本打包和发送
  * 参数:
- *      fd：连接控制符
+ *      fd: 连接控制符
  *      *data: 数据
  *      dataLen: 长度
  *      mask: 数据是否使用掩码, 客户端到服务器必须使用掩码模式
@@ -1147,11 +1172,18 @@ int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
     int32_t retLen, ret;
 #ifdef WS_DEBUG
     uint32_t i;
-    printf("ws_send: %d\r\n", dataLen);
 #endif
-    //数据打包 +16 预留类型、掩码、长度保存位
-    wsPkg = (unsigned char *)calloc(dataLen + 16, sizeof(unsigned char));
-    retLen = ws_enPackage((unsigned char *)data, dataLen, wsPkg, (dataLen + 16), mask, type);
+    //参数检查
+    if (dataLen < 0)
+        return 0;
+    //数据打包 +14 预留类型、掩码、长度保存位
+    wsPkg = (unsigned char *)calloc(dataLen + 14, sizeof(unsigned char));
+    retLen = ws_enPackage((unsigned char *)data, dataLen, wsPkg, (dataLen + 14), mask, type);
+    if (retLen <= 0)
+    {
+        free(wsPkg);
+        return 0;
+    }
 #ifdef WS_DEBUG
     //显示数据
     printf("ws_send: %d\r\n", retLen);
@@ -1168,170 +1200,127 @@ int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
  * 名称: ws_recv
  * 功能: websocket数据接收和基本解包
  * 参数: 
- *      fd：连接控制符
+ *      fd: 连接控制符
  *      data: 数据接收地址
- *      dataMaxLen: 接收区可用最大长度
- * 返回: = 0 没有收到有效数据 > 0 成功接收并解包数据 < 0 非包数据的长度
+ *      dataMaxLen: 接收区可用最大长度,至少16字节
+ * 返回:
+ *      =0 没有收到有效数据(或者收到特殊包,如果是 WDT_DISCONN 则fd已被close)
+ *      >0 成功接收并解包数据
+ *      <0 非标准数据包数据的长度
  * 说明: 无
  ******************************************************************************/
 int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
 {
-    unsigned char *wsPkg = NULL;
-    unsigned char *recvBuf = NULL;
-    int32_t ret, retTemp;
-    uint32_t retLen = 0;
+    int32_t ret;
+    int32_t retRecv, retDePkg;
+    uint32_t retDataLen = 0;
     uint32_t retHeadLen = 0;
     int32_t retFinal = 0;
+    uint32_t timeout = 0;
     WsData_Type retPkgType = WDT_NULL;
-    //续传时,等待下一包需加时间限制
-    int32_t timeoutCount = 0;
-
-    recvBuf = (unsigned char *)calloc(dataMaxLen, sizeof(unsigned char));
-    ret = recv(fd, recvBuf, dataMaxLen, MSG_NOSIGNAL);
-    //数据可能超出了范围限制
-    if (ret == dataMaxLen)
-        printf("ws_recv: warning !! buff len %d > %d\r\n", ret, dataMaxLen);
-    if (ret > 0)
+    char tmp[16];
+    //参数检查
+    if (dataMaxLen < 16)
+    {
+        printf("ws_recv error !! min dataMaxLen >= 16 \r\n");
+        return 0;
+    }
+    //先接收数据头部,头部最大2+4+8=14字节
+    retRecv = recv(fd, data, 14, MSG_NOSIGNAL);
+    if (retRecv > 0)
     {
         //数据解包
-        wsPkg = (unsigned char *)calloc(ret + 16, sizeof(unsigned char));
-        retPkgType = ws_dePackage(recvBuf, ret, wsPkg, (ret + 16), &retLen, &retHeadLen);
-        //非包数据, 拷贝后返回 -len
-        if (retPkgType == WDT_ERR && retLen == 0)
+        retDePkg = ws_dePackage((unsigned char *)data, retRecv, &retDataLen, &retHeadLen, &retPkgType);
+#ifdef WS_DEBUG
+        //显示数据包的头10个字节
+        if (dataMaxLen >= 10)
+            printf("ws_recv: ret/%d, retPkgType/%d, data/%d, head/%d: %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n",
+                   retRecv, retPkgType, retDataLen, retHeadLen,
+                   data[0], data[1], data[2], data[3], data[4],
+                   data[5], data[6], data[7], data[8], data[9]);
+#endif
+        //1. 非标准数据包数据,再接收一次(防止丢数据),之后返回 -len
+        //2. dataMaxLen不足已收下这一包数据,当作非标准数据包数据处理,能收多少算多少
+        if (retDePkg == 0 || (retDePkg < 0 && retRecv - retDePkg > dataMaxLen))
         {
-            memset(data, 0, dataMaxLen);
-            if (ret < dataMaxLen)
+            //能收多少算多少
+            retRecv += recv(fd, &data[retRecv], dataMaxLen - retRecv, MSG_NOSIGNAL);
+            //对于包过大的问题
+            if (retDePkg < 0)
             {
-                memcpy(data, recvBuf, ret);
-                retFinal = -ret;
+                //1. 发出警告
+                printf("ws_recv warnning !! pkgLen(%d) > dataMaxLen(%d)\r\n",
+                       retRecv - retDePkg, dataMaxLen);
+                //2. 把这包数据丢弃,以免影响后续包
+                while (recv(fd, tmp, sizeof(tmp), MSG_NOSIGNAL) > 0)
+                    ;
             }
-            else
-            {
-                memcpy(data, recvBuf, dataMaxLen);
-                retFinal = -dataMaxLen;
-            }
+            retFinal = -retRecv;
         }
-        //正常包
+        //正常收包
         else
         {
-            //数据可能超出了范围限制
-            if (retLen > dataMaxLen)
+            //检查是否需要续传
+            if (retDePkg < 0)
             {
-                printf("ws_recv: warning !! buff len %d > %d\r\n", retLen, dataMaxLen);
-                goto recv_return_null;
-            }
-#ifdef WS_DEBUG
-            //显示数据包的头10个字节
-            if (ret > 10)
-                printf("ws_recv: ret/%d, retPkgType/%d, retLen/%d, head/%d: %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n",
-                       ret, retPkgType, retLen, retHeadLen,
-                       recvBuf[0], recvBuf[1], recvBuf[2], recvBuf[3], recvBuf[4],
-                       recvBuf[5], recvBuf[6], recvBuf[7], recvBuf[8], recvBuf[9]);
-#endif
-            //续传? 检查数据包的头10个字节发现recv()时并没有把一包数据接收完,继续接收..
-            if (ret < retHeadLen + retLen)
-            {
-                timeoutCount = 50; //50*10=500ms等待
-                while (ret < retHeadLen + retLen)
+                //再接收一次(通常情况)
+                ret = recv(fd, &data[retRecv], -retDePkg, MSG_NOSIGNAL);
+                if (ret > 0)
                 {
-                    ws_delayms(10);
-                    retTemp = recv(fd, &recvBuf[ret], dataMaxLen - ret, MSG_NOSIGNAL);
-                    if (retTemp > 0)
-                    {
-                        timeoutCount = 50; //50*10=500ms等待
-                        ret += retTemp;
-                    }
-                    else
-                    {
-                        if (errno == EAGAIN || errno == EINTR)
-                            ; //连接中断
-                        else
-                            goto recv_return_null;
-                    }
-                    if (--timeoutCount < 1)
-                        goto recv_return_null;
+                    retRecv += ret;
+                    retDePkg += ret;
                 }
-                //再解包一次
-                free(wsPkg);
-                wsPkg = (unsigned char *)calloc(ret + 16, sizeof(unsigned char));
-                retPkgType = ws_dePackage(recvBuf, ret, wsPkg, (ret + 16), &retLen, &retHeadLen);
-#ifdef WS_DEBUG
-                //显示数据包的头10个字节
-                if (ret > 10)
-                    printf("ws_recv: ret/%d, retPkgType/%d, retLen/%d, head/%d: %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n",
-                           ret, retPkgType, retLen, retHeadLen,
-                           recvBuf[0], recvBuf[1], recvBuf[2], recvBuf[3], recvBuf[4],
-                           recvBuf[5], recvBuf[6], recvBuf[7], recvBuf[8], recvBuf[9]);
-#endif
+                //数据量上百K时需要多次recv,无数据200ms超时,继续接收
+                for (timeout = 0; timeout < 200 && retDePkg < 0;)
+                {
+                    ws_delayms(5);
+                    timeout += 5;
+                    ret = recv(fd, &data[retRecv], -retDePkg, MSG_NOSIGNAL);
+                    if (ret > 0)
+                    {
+                        timeout = 0;
+                        retRecv += ret;
+                        retDePkg += ret;
+                    }
+                }
+                //二次解包
+                retDePkg = ws_dePackage((unsigned char *)data, retRecv, &retDataLen, &retHeadLen, &retPkgType);
             }
             //一包数据终于完整的接收完了...
-            if (retLen > 0)
+            if (retDePkg > 0)
             {
+                //收到 PING 包,应自动回复 PONG
                 if (retPkgType == WDT_PING)
                 {
-                    // 自动 ping-pong
-                    ws_send(fd, (char *)wsPkg, retLen, true, WDT_PONG);
-                    // 显示数据
-                    printf("ws_recv: PING %d\r\n%s\r\n", retLen, wsPkg);
+                    //自动 ping-pong
+                    ws_send(fd, NULL, 0, true, WDT_PONG);
+                    printf("ws_recv: WDT_PING\r\n");
+                    retFinal = 0;
                 }
+                //收到 PONG 包
                 else if (retPkgType == WDT_PONG)
                 {
-                    printf("ws_recv: PONG %d\r\n%s\r\n", retLen, wsPkg);
+                    printf("ws_recv: WDT_PONG\r\n");
+                    retFinal = 0;
                 }
-                else //if(retPkgType == WDT_TXTDATA || retPkgType == WDT_BINDATA || retPkgType == WDT_MINDATA)
+                //收到 断连 包
+                else if (retPkgType == WDT_DISCONN)
                 {
-                    memcpy(data, wsPkg, retLen);
-#ifdef WS_DEBUG
-                    // 显示数据
-                    if (wsPkg[0] >= ' ' && wsPkg[0] <= '~')
-                        printf("\r\nws_recv: New Package StrFile retPkgType:%d/retLen:%d\r\n%s\r\n", retPkgType, retLen, wsPkg);
-                    else
-                    {
-                        printf("\r\nws_recv: New Package BinFile retPkgType:%d/retLen:%d\r\n", retPkgType, retLen);
-                        int32_t i;
-                        for (i = 0; i < retLen; i++)
-                            printf("%.2X ", wsPkg[i]);
-                        printf("\r\n");
-                    }
-#endif
+                    printf("ws_recv: WDT_DISCONN\r\n");
+                    retFinal = 0;
                 }
-                //返回有效数据长度
-                retFinal = retLen;
-            }
-#ifdef WS_DEBUG
-            else
-            {
-                // 显示非包数据
-                if (recvBuf[0] >= ' ' && recvBuf[0] <= '~')
-                    printf("\r\nws_recv: ret:%d/retPkgType:%d/retLen:%d\r\n%s\r\n", ret, retPkgType, retLen, recvBuf);
+                //其它正常数据包
                 else
-                {
-                    printf("\r\nws_recv: ret:%d/retPkgType:%d/retLen:%d\r\n%s\r\n", ret, retPkgType, retLen, recvBuf);
-                    int32_t i;
-                    for (i = 0; i < ret; i++)
-                        printf("%.2X ", recvBuf[i]);
-                    printf("\r\n");
-                }
+                    retFinal = retDePkg;
             }
-#endif
+            //未曾设想的道路...
+            else
+                retFinal = -retRecv;
         }
     }
-
-    if (recvBuf)
-        free(recvBuf);
-    if (wsPkg)
-        free(wsPkg);
+    //返回包类型
     if (dataType)
         *dataType = retPkgType;
+
     return retFinal;
-
-recv_return_null:
-
-    if (recvBuf)
-        free(recvBuf);
-    if (wsPkg)
-        free(wsPkg);
-    if (dataType)
-        *dataType = retPkgType;
-    return 0;
 }
