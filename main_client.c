@@ -15,12 +15,14 @@
 
 #define SERVER_IP "127.0.0.1"
 #define SERVER_PORT 9999
+#define SERVER_PATH "/"
 
 int main(void)
 {
     int fd, pid;
     int ret;
     int heart = 0;
+    WsData_Type retPkgType;
 
     char recv_buff[RECV_PKG_MAX];
     char send_buff[SEND_PKG_MAX];
@@ -48,14 +50,17 @@ int main(void)
         ws_delayms(10);
 
         //接收数据
-        ret = ws_recv(fd, recv_buff, sizeof(recv_buff), NULL);
+        ret = ws_recv(fd, recv_buff, sizeof(recv_buff), &retPkgType);
         //正常包
         if (ret > 0)
         {
             printf("client(%d): recv len/%d %s\r\n", pid, ret, recv_buff);
 
+            //收到断开包
+            if (retPkgType == WDT_DISCONN)
+                break;
             //根据服务器下发内容做出反应
-            if (strstr(recv_buff, "Hi~") != NULL)
+            else if (strstr(recv_buff, "Hi~") != NULL)
             {
                 snprintf(send_buff, sizeof(send_buff), "I am client(%d)", pid);
                 ret = ws_send(fd, send_buff, strlen(send_buff), true, WDT_TXTDATA);
@@ -78,15 +83,20 @@ int main(void)
             break;
         }
 
-        //一个合格的客户端,用该定时给服务器发心跳
+        //一个合格的客户端,应该定时给服务器发心跳
         heart += 10;
         if (heart > 3000)
         {
             heart = 0;
+
             //发送心跳
             snprintf(send_buff, sizeof(send_buff), "Heart from client(%d) %s", pid, ws_time());
             // ret = ws_send(fd, send_buff, sizeof(send_buff), true, WDT_TXTDATA); //大数据量压力测试
             ret = ws_send(fd, send_buff, strlen(send_buff), true, WDT_TXTDATA);
+
+            //用ping包代替心跳
+            // ret =  ws_send(fd, NULL, 0, true, WDT_PING);
+
             //send返回异常, 连接已断开
             if (ret <= 0)
             {

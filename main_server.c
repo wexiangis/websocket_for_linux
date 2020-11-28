@@ -27,6 +27,15 @@
 //bind超时ms(通常为服务器端口被占用,或者有客户端还连着上次的服务器)
 #define SERVER_BIND_TIMEOUTMS 1000
 
+/*
+ *  websocket服务器通常有ip、port和路径3个参数
+ * 
+ *  写作"ws://ip:port/aaa/bb/cc",其中"/aaa/bb/cc"即为路径
+ * 
+ *  这里未作检查
+ */
+#define SERVER_PATH "/" //"/aaa/bb/cc"
+
 #define SERVER_PORT 9999
 
 typedef struct WsServer
@@ -111,25 +120,23 @@ int server_recv(Ws_Server *wss, int fd)
         if (arrayFind(wss->clientArray, EPOLL_RESPOND_NUM, fd) < 0)
         {
             //构建回复
-            ret = ws_responseClient(fd, buff, ret, NULL);
+            ret = ws_responseClient(fd, buff, ret, SERVER_PATH);
             //连接成功后,再添加fd到数组
             if (ret > 0)
+            {
                 arrayAdd(wss->clientArray, EPOLL_RESPOND_NUM, fd);
+                return 0;
+            }
             //发送失败,连接断开
             else
                 return -1;
         }
     }
-    //无接收数据时,检查连接状态
-    else if (ret == 0)
-    {
-        if (errno > 0 && (errno == EAGAIN || errno == EINTR))
-            ;
-        else
-            return -1;
-    }
+    //收到断开包
+    if (retPkgType == WDT_DISCONN)
+        return -1;
     //回调
-    else if (wss->server_callBack)
+    else if (ret != 0 && wss->server_callBack)
         wss->server_callBack(wss, fd, buff, ret, retPkgType);
 
     return 0;
@@ -288,7 +295,15 @@ void server_thread(void *argv)
     close(wss->fd);
 }
 
-//客户端数据接收回调
+/*
+ *  客户端数据接收回调
+ *  参数:
+ *      wss: main函数初始化服务器时传入的指针
+ *      fd: 客户端连入时产生的控制符,可以作为客户端唯一标识
+ *      buff: 解包后的最终数据
+ *      buffLen: 数据量, 为负值时表示非标准包的数据量
+ *      type: 包类型
+ */
 void server_callBack(Ws_Server *wss, int fd, char *buff, int buffLen, WsData_Type type)
 {
     int ret = 0;
@@ -300,7 +315,7 @@ void server_callBack(Ws_Server *wss, int fd, char *buff, int buffLen, WsData_Typ
         //在这里根据客户端的请求内容, 提供相应的回复
         if (strstr(buff, "hi~") != NULL)
             ret = ws_send(fd, "Hi~ I am server", 15, false, WDT_TXTDATA);
-        //回显
+        //回显,收到什么回复什么
         else
             ret = ws_send(fd, buff, strlen(buff), false, WDT_TXTDATA);
 
@@ -311,7 +326,7 @@ void server_callBack(Ws_Server *wss, int fd, char *buff, int buffLen, WsData_Typ
     //非 websocket 数据包
     else
     {
-        printf("server: recv fd/%03d len/%d bad pkg %s\r\n", fd, buffLen, buff);
+        printf("server: recv fd/%03d len/%d bad pkg %s\r\n", fd, -buffLen, buff);
     }
 }
 
