@@ -153,16 +153,16 @@ const char ws_base64char[] =
  * 返回: base64字符串长度
  * 说明: 无
  ******************************************************************************/
-int32_t ws_base64_encode(const unsigned char *bindata, char *base64, int32_t binlength)
+int32_t ws_base64_encode(const uint8_t *bindata, char *base64, int32_t binlength)
 {
     int32_t i, j;
-    unsigned char current;
+    uint8_t current;
     for (i = 0, j = 0; i < binlength; i += 3)
     {
         current = (bindata[i] >> 2);
-        current &= (unsigned char)0x3F;
+        current &= (uint8_t)0x3F;
         base64[j++] = ws_base64char[(int32_t)current];
-        current = ((unsigned char)(bindata[i] << 4)) & ((unsigned char)0x30);
+        current = ((uint8_t)(bindata[i] << 4)) & ((uint8_t)0x30);
         if (i + 1 >= binlength)
         {
             base64[j++] = ws_base64char[(int32_t)current];
@@ -170,18 +170,18 @@ int32_t ws_base64_encode(const unsigned char *bindata, char *base64, int32_t bin
             base64[j++] = '=';
             break;
         }
-        current |= ((unsigned char)(bindata[i + 1] >> 4)) & ((unsigned char)0x0F);
+        current |= ((uint8_t)(bindata[i + 1] >> 4)) & ((uint8_t)0x0F);
         base64[j++] = ws_base64char[(int32_t)current];
-        current = ((unsigned char)(bindata[i + 1] << 2)) & ((unsigned char)0x3C);
+        current = ((uint8_t)(bindata[i + 1] << 2)) & ((uint8_t)0x3C);
         if (i + 2 >= binlength)
         {
             base64[j++] = ws_base64char[(int32_t)current];
             base64[j++] = '=';
             break;
         }
-        current |= ((unsigned char)(bindata[i + 2] >> 6)) & ((unsigned char)0x03);
+        current |= ((uint8_t)(bindata[i + 2] >> 6)) & ((uint8_t)0x03);
         base64[j++] = ws_base64char[(int32_t)current];
-        current = ((unsigned char)bindata[i + 2]) & ((unsigned char)0x3F);
+        current = ((uint8_t)bindata[i + 2]) & ((uint8_t)0x3F);
         base64[j++] = ws_base64char[(int32_t)current];
     }
     base64[j] = '\0';
@@ -196,11 +196,11 @@ int32_t ws_base64_encode(const unsigned char *bindata, char *base64, int32_t bin
  * 返回: 解码出来的ascii字符串长度
  * 说明: 无
  ******************************************************************************/
-int32_t ws_base64_decode(const char *base64, unsigned char *bindata)
+int32_t ws_base64_decode(const char *base64, uint8_t *bindata)
 {
     int32_t i, j;
-    unsigned char k;
-    unsigned char temp[4];
+    uint8_t k;
+    uint8_t temp[4];
     for (i = 0, j = 0; base64[i] != '\0'; i += 4)
     {
         memset(temp, 0xFF, sizeof(temp));
@@ -224,16 +224,16 @@ int32_t ws_base64_decode(const char *base64, unsigned char *bindata)
             if (ws_base64char[k] == base64[i + 3])
                 temp[3] = k;
         }
-        bindata[j++] = ((unsigned char)(((unsigned char)(temp[0] << 2)) & 0xFC)) |
-                       ((unsigned char)((unsigned char)(temp[1] >> 4) & 0x03));
+        bindata[j++] = ((uint8_t)(((uint8_t)(temp[0] << 2)) & 0xFC)) |
+                       ((uint8_t)((uint8_t)(temp[1] >> 4) & 0x03));
         if (base64[i + 2] == '=')
             break;
-        bindata[j++] = ((unsigned char)(((unsigned char)(temp[1] << 4)) & 0xF0)) |
-                       ((unsigned char)((unsigned char)(temp[2] >> 2) & 0x0F));
+        bindata[j++] = ((uint8_t)(((uint8_t)(temp[1] << 4)) & 0xF0)) |
+                       ((uint8_t)((uint8_t)(temp[2] >> 2) & 0x0F));
         if (base64[i + 3] == '=')
             break;
-        bindata[j++] = ((unsigned char)(((unsigned char)(temp[2] << 6)) & 0xF0)) |
-                       ((unsigned char)(temp[3] & 0x3F));
+        bindata[j++] = ((uint8_t)(((uint8_t)(temp[2] << 6)) & 0xF0)) |
+                       ((uint8_t)(temp[3] & 0x3F));
     }
     return j;
 }
@@ -245,7 +245,7 @@ typedef struct SHA1Context
     uint32_t Message_Digest[5];
     uint32_t Length_Low;
     uint32_t Length_High;
-    unsigned char Message_Block[64];
+    uint8_t Message_Block[64];
     int32_t Message_Block_Index;
     int32_t Computed;
     int32_t Corrupted;
@@ -523,11 +523,11 @@ int32_t htoi(const char s[], int32_t start, int32_t len)
 void ws_getRandomString(char *buff, uint32_t len)
 {
     uint32_t i;
-    unsigned char temp;
+    uint8_t temp;
     srand((int32_t)time(0));
     for (i = 0; i < len; i++)
     {
-        temp = (unsigned char)(rand() % 256);
+        temp = (uint8_t)(rand() % 256);
         if (temp == 0) //随机数不要0, 0 会干扰对字符串长度的判断
             temp = 128;
         buff[i] = temp;
@@ -545,7 +545,7 @@ int32_t ws_buildShakeKey(char *key)
 {
     char tempKey[WEBSOCKET_SHAKE_KEY_LEN] = {0};
     ws_getRandomString(tempKey, WEBSOCKET_SHAKE_KEY_LEN);
-    return ws_base64_encode((const unsigned char *)tempKey, (char *)key, WEBSOCKET_SHAKE_KEY_LEN);
+    return ws_base64_encode((const uint8_t *)tempKey, (char *)key, WEBSOCKET_SHAKE_KEY_LEN);
 }
 
 /*******************************************************************************
@@ -584,7 +584,7 @@ int32_t ws_buildRespondShakeKey(char *acceptKey, uint32_t acceptKeyLen, char *re
 
     for (i = 0; i < n; i += 2)
         sha1Data[i / 2] = htoi(sha1DataTemp, i, 2);
-    n = ws_base64_encode((const unsigned char *)sha1Data, (char *)respondKey, (n / 2));
+    n = ws_base64_encode((const uint8_t *)sha1Data, (char *)respondKey, (n / 2));
 
     free(sha1DataTemp);
     free(sha1Data);
@@ -695,16 +695,16 @@ void ws_buildHttpRespond(char *acceptKey, uint32_t acceptKeyLen, char *package)
  * 说明: 无
  ******************************************************************************/
 int32_t ws_enPackage(
-    unsigned char *data,
+    uint8_t *data,
     uint32_t dataLen,
-    unsigned char *package,
+    uint8_t *package,
     uint32_t packageMaxLen,
     bool mask,
     WsData_Type type)
 {
     uint32_t i, pkgLen = 0;
     //掩码
-    unsigned char maskKey[4] = {0};
+    uint8_t maskKey[4] = {0};
     uint32_t maskCount = 0;
     //最小长度检查
     if (packageMaxLen < 2)
@@ -740,8 +740,8 @@ int32_t ws_enPackage(
         if (packageMaxLen < 4)
             return -1;
         *package++ |= 0x7E;
-        *package++ = (unsigned char)((dataLen >> 8) & 0xFF);
-        *package++ = (unsigned char)((dataLen >> 0) & 0xFF);
+        *package++ = (uint8_t)((dataLen >> 8) & 0xFF);
+        *package++ = (uint8_t)((dataLen >> 0) & 0xFF);
         pkgLen += 3;
     }
     //8字节记录长度
@@ -754,10 +754,10 @@ int32_t ws_enPackage(
         *package++ = 0;
         *package++ = 0;
         *package++ = 0;
-        *package++ = (unsigned char)((dataLen >> 24) & 0xFF); //到这里就够传4GB数据了
-        *package++ = (unsigned char)((dataLen >> 16) & 0xFF);
-        *package++ = (unsigned char)((dataLen >> 8) & 0xFF);
-        *package++ = (unsigned char)((dataLen >> 0) & 0xFF);
+        *package++ = (uint8_t)((dataLen >> 24) & 0xFF); //到这里就够传4GB数据了
+        *package++ = (uint8_t)((dataLen >> 16) & 0xFF);
+        *package++ = (uint8_t)((dataLen >> 8) & 0xFF);
+        *package++ = (uint8_t)((dataLen >> 0) & 0xFF);
         pkgLen += 9;
     }
     //数据使用掩码时,使用异或解码,maskKey[4]依次和数据异或运算,逻辑如下
@@ -782,7 +782,8 @@ int32_t ws_enPackage(
             *package++ = maskKey[maskCount] ^ data[i];
         }
         pkgLen += i;
-        *package = '\0'; //断尾
+        //断尾
+        *package = '\0';
     }
     //数据没使用掩码, 直接复制数据段
     else
@@ -790,9 +791,14 @@ int32_t ws_enPackage(
         //长度不足
         if (packageMaxLen < pkgLen + dataLen)
             return -1;
-        memcpy(package, data, dataLen);
-        package[dataLen] = '\0'; //断尾
-        pkgLen += dataLen;
+        //这种方法,data指针位置相近时拷贝异常
+        // memcpy(package, data, dataLen);
+        //手动拷贝
+        for (i = 0; i < dataLen; i++)
+            *package++ = data[i];
+        pkgLen += i;
+        //断尾
+        *package = '\0';
     }
 
     return pkgLen;
@@ -815,7 +821,7 @@ int32_t ws_enPackage(
  *      建议recv时先接收14字节然后解包,根据返回缺失长度再recv一次,最后再解包,这样可有效避免连包时只解析到一包的问题
  ******************************************************************************/
 int32_t ws_dePackage(
-    unsigned char *data,
+    uint8_t *data,
     uint32_t len,
     uint32_t *retDataLen,
     uint32_t *retHeadLen,
@@ -829,7 +835,7 @@ int32_t ws_dePackage(
     //数据段长度
     uint32_t dataLen = 0;
     //掩码
-    unsigned char maskKey[4] = {0};
+    uint8_t maskKey[4] = {0};
     bool mask = false;
     uint8_t maskCount = 0;
     //数据长度过短
@@ -960,13 +966,21 @@ int32_t ws_dePackage(
             //异或运算后得到数据
             data[cOut] = maskKey[maskCount] ^ data[cIn];
         }
-        data[cOut] = '\0'; //断尾
+        //断尾
+        data[cOut] = '\0';
     }
     //解包数据没使用掩码, 直接复制数据段
     else
     {
-        memcpy(data, &data[dataOffset], dataLen);
-        data[dataLen] = '\0'; //断尾
+        //这种方法,data指针位置相近时拷贝异常
+        // memcpy(data, &data[dataOffset], dataLen);
+        //手动拷贝
+        cIn = dataOffset;
+        cOut = 0;
+        for (; cOut < dataLen; cIn++, cOut++)
+            data[cOut] = data[cIn];
+        //断尾
+        data[dataLen] = '\0';
     }
     //有些特殊包数据段长度可能为0,这里为区分格式错误返回,置为1
     if (dataLen == 0)
@@ -982,7 +996,7 @@ int32_t ws_dePackage(
  *      port: 服务器端口
  *      path: 接口地址
  *      timeoutMs: connect阶段超时设置,接收阶段为timeoutMs*2,写0使用默认值1000
- * 返回: >0 返回连接控制符 <= 0 连接失败或超时, 所花费的时间 ms
+ * 返回: >0 返回连接控制符 <= 0 连接失败或超时,所花费的时间ms的负值
  * 说明: 无
  ******************************************************************************/
 int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
@@ -1168,7 +1182,7 @@ int ws_responseClient(int fd, char *data, int dataLen, char *path)
  ******************************************************************************/
 int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
 {
-    unsigned char *wsPkg = NULL;
+    uint8_t *wsPkg = NULL;
     int32_t retLen, ret;
 #ifdef WS_DEBUG
     uint32_t i;
@@ -1177,8 +1191,8 @@ int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
     if (dataLen < 0)
         return 0;
     //数据打包 +14 预留类型、掩码、长度保存位
-    wsPkg = (unsigned char *)calloc(dataLen + 14, sizeof(unsigned char));
-    retLen = ws_enPackage((unsigned char *)data, dataLen, wsPkg, (dataLen + 14), mask, type);
+    wsPkg = (uint8_t *)calloc(dataLen + 14, sizeof(uint8_t));
+    retLen = ws_enPackage((uint8_t *)data, dataLen, wsPkg, (dataLen + 14), mask, type);
     if (retLen <= 0)
     {
         free(wsPkg);
@@ -1186,7 +1200,7 @@ int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
     }
 #ifdef WS_DEBUG
     //显示数据
-    printf("ws_send: %d\r\n", retLen);
+    printf("ws_send: len/%d\r\n", retLen);
     for (i = 0; i < retLen; i++)
         printf("%.2X ", wsPkg[i]);
     printf("\r\n");
@@ -1219,6 +1233,9 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
     uint32_t timeout = 0;
     WsData_Type retPkgType = WDT_NULL;
     char tmp[16];
+#ifdef WS_DEBUG
+    uint32_t i;
+#endif
     //参数检查
     if (dataMaxLen < 16)
     {
@@ -1230,15 +1247,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
     if (retRecv > 0)
     {
         //数据解包
-        retDePkg = ws_dePackage((unsigned char *)data, retRecv, &retDataLen, &retHeadLen, &retPkgType);
-#ifdef WS_DEBUG
-        //显示数据包的头10个字节
-        if (dataMaxLen >= 10)
-            printf("ws_recv: ret/%d, retPkgType/%d, data/%d, head/%d: %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\r\n",
-                   retRecv, retPkgType, retDataLen, retHeadLen,
-                   data[0], data[1], data[2], data[3], data[4],
-                   data[5], data[6], data[7], data[8], data[9]);
-#endif
+        retDePkg = ws_dePackage((uint8_t *)data, retRecv, &retDataLen, &retHeadLen, &retPkgType);
         //1. 非标准数据包数据,再接收一次(防止丢数据),之后返回 -len
         //2. dataMaxLen不足已收下这一包数据,当作非标准数据包数据处理,能收多少算多少
         if (retDePkg == 0 || (retDePkg < 0 && retRecv - retDePkg > dataMaxLen))
@@ -1256,6 +1265,14 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
                     ;
             }
             retFinal = -retRecv;
+#ifdef WS_DEBUG
+            //显示数据
+            printf("ws_recv1: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
+                retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
+            for (i = 0; i < retRecv; i++)
+                printf("%.2X ", (uint8_t)data[i]);
+            printf("\r\n");
+#endif
         }
         //正常收包
         else
@@ -1283,9 +1300,25 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
                         retDePkg += ret;
                     }
                 }
+#ifdef WS_DEBUG
+                //显示数据
+                printf("ws_recv2: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
+                    retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
+                for (i = 0; i < retRecv; i++)
+                    printf("%.2X ", (uint8_t)data[i]);
+                printf("\r\n");
+#endif
                 //二次解包
-                retDePkg = ws_dePackage((unsigned char *)data, retRecv, &retDataLen, &retHeadLen, &retPkgType);
+                retDePkg = ws_dePackage((uint8_t *)data, retRecv, &retDataLen, &retHeadLen, &retPkgType);
             }
+#ifdef WS_DEBUG
+            //显示数据
+            printf("ws_recv3: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
+                retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
+            for (i = 0; i < retRecv; i++)
+                printf("%.2X ", (uint8_t)data[i]);
+            printf("\r\n");
+#endif
             //一包数据终于完整的接收完了...
             if (retDePkg > 0)
             {

@@ -317,7 +317,7 @@ void server_callBack(Ws_Server *wss, int fd, char *buff, int buffLen, WsData_Typ
             ret = ws_send(fd, "Hi~ I am server", 15, false, WDT_TXTDATA);
         //回显,收到什么回复什么
         else
-            ret = ws_send(fd, buff, strlen(buff), false, WDT_TXTDATA);
+            ret = ws_send(fd, buff, buffLen, false, WDT_TXTDATA);
 
         //发送失败,连接断开
         if (ret < 0)
