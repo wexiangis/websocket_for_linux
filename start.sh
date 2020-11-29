@@ -1,5 +1,6 @@
 
 # 客户端数量
+# 注意不要超过 main_server.c 中宏定义 EPOLL_RESPOND_NUM 定义的数量
 cNum=50
 
 echo ""
