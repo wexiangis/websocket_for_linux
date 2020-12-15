@@ -25,7 +25,8 @@ int ws_responseClient(int fd, char *data, int dataLen, char *path);
 int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type);
 int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *type);
 
-void ws_delayms(int ms);
+void ws_delayus(unsigned int us);
+void ws_delayms(unsigned int ms);
 char *ws_time(void); //返回时间戳,格式如"20:45:30"
 
 //域名转IP工具,成功返回大于0请求时长ms,失败返回负值的请求时长ms

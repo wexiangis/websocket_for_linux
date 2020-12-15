@@ -187,13 +187,13 @@ int main(void)
             }
             else
             {
-                timeout += 1;
-                if (timeout > 1000)
+                timeout += 10;
+                if (timeout > 1000000)//1秒超时
                     fwOver = 1;
                 break;
             }
-        } while(ret > 0);
-        ws_delayms(1);
+        } while(ret != 0);
+        ws_delayus(10);
     }
 
     close(fw);

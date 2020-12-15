@@ -27,12 +27,16 @@
 #define WEBSOCKET_SHAKE_KEY_LEN 16
 
 #include <sys/time.h>
-void ws_delayms(int ms)
+void ws_delayus(unsigned int us)
 {
     struct timeval tim;
-    tim.tv_sec = ms / 1000;
-    tim.tv_usec = ms % 1000 * 1000;
+    tim.tv_sec = us / 1000000;
+    tim.tv_usec = us % 1000000;
     select(0, NULL, NULL, NULL, &tim);
+}
+void ws_delayms(unsigned int ms)
+{
+    ws_delayus(ms * 1000);
 }
 char *ws_time(void)
 {
@@ -1190,6 +1194,9 @@ int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
     //参数检查
     if (dataLen < 0)
         return 0;
+    //非包数据发送
+    if (type == WDT_NULL)
+        return send(fd, data, dataLen, MSG_NOSIGNAL);
     //数据打包 +14 预留类型、掩码、长度保存位
     wsPkg = (uint8_t *)calloc(dataLen + 14, sizeof(uint8_t));
     retLen = ws_enPackage((uint8_t *)data, dataLen, wsPkg, (dataLen + 14), mask, type);
