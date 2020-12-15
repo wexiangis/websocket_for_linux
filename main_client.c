@@ -120,13 +120,13 @@ int main(void)
 #include <sys/types.h>
 
 //指定要读取的文件
-#define FILE_R "./1M.bin"
+#define FILE_R "./in.bin"
 //指定要写入的文件
-#define FILE_W "./save.txt"
+#define FILE_W "./out.bin"
 
 int main(void)
 {
-    int ret, total = 0, timeout = 0;
+    int ret, recvTotal = 0, sendTotal = 0, timeout = 0;
     WsData_Type type;
     char recv_buff[RECV_PKG_MAX];
     char send_buff[SEND_PKG_MAX];
@@ -148,7 +148,7 @@ int main(void)
     }
 
     fw = open(FILE_W, O_RDWR | O_CREAT, 0666);
-    if (fr < 1)
+    if (fw < 1)
     {
         printf("open FILE_W %s failed \r\n", FILE_W);
         goto exit_fr;
@@ -163,6 +163,7 @@ int main(void)
             if (ret > 0)
             {
                 timeout = 0;
+                sendTotal += ret;
                 ret = ws_send(fd, send_buff, ret, true, WDT_BINDATA);
             }
             else
@@ -174,15 +175,15 @@ int main(void)
             if (ret > 0)
             {
                 timeout = 0;
-                total += ret;
-                printf("recv %d/%d bytes\r\n", ret, total);
+                recvTotal += ret;
+                printf("recv %d/%d/%d bytes\r\n", ret, recvTotal, sendTotal);
                 write(fw, recv_buff, ret);
             }
             else if (ret < 0)
             {
                 timeout = 0;
-                total += -ret;
-                printf("recv bad pkg %d/%d bytes\r\n", ret, total);
+                recvTotal += -ret;
+                printf("recv %d/%d/%d bytes bad pkg\r\n", ret, recvTotal, sendTotal);
             }
             else
             {

@@ -89,7 +89,7 @@ int arrayFind(int array[][3], int arraySize, int fd)
     }
     return -1;
 }
-void arrayRecv(int array[][3], int arraySize, int fd, int recvBytes)
+void arraySetRecv(int array[][3], int arraySize, int fd, int recvBytes)
 {
     int i;
     for (i = 0; i < arraySize; i++)
@@ -100,6 +100,18 @@ void arrayRecv(int array[][3], int arraySize, int fd, int recvBytes)
             return;
         }
     }
+}
+int arrayGetRecv(int array[][3], int arraySize, int fd)
+{
+    int i;
+    for (i = 0; i < arraySize; i++)
+    {
+        if (array[i][0] == fd)
+        {
+            return array[i][2];
+        }
+    }
+    return -1;
 }
 
 //抛线程工具
@@ -133,7 +145,7 @@ int server_recv(Ws_Server *wss, int fd)
 
     //接收数据量统计
     if (ret != 0)
-        arrayRecv(wss->clientArray, EPOLL_RESPOND_NUM, fd, ret > 0 ? ret : (-ret));
+        arraySetRecv(wss->clientArray, EPOLL_RESPOND_NUM, fd, ret > 0 ? ret : (-ret));
 
     //这可能是一包客户端请求
     if (ret < 0 &&
@@ -337,16 +349,12 @@ void server_thread(void *argv)
 void server_callBack(Ws_Server *wss, int fd, char *buff, int buffLen, WsData_Type type)
 {
     int ret = 0;
-    int fd_addr;
-    //
-    fd_addr = arrayFind(wss->clientArray, EPOLL_RESPOND_NUM, fd);
-    if (fd_addr < 0)
-        fd_addr = 0;
+    int recvTotal = arrayGetRecv(wss->clientArray, EPOLL_RESPOND_NUM, fd);
     //正常 websocket 数据包
     if (buffLen > 0)
     {
-        // printf("server: recv fd/%03d len/%d/%d %s\r\n", fd, buffLen, wss->clientArray[fd_addr][2], buff);
-        printf("server: recv fd/%03d len/%d/%d\r\n", fd, buffLen, wss->clientArray[fd_addr][2]);
+        // printf("server: recv fd/%03d len/%d/%d %s\r\n", fd, buffLen, recvTotal, buff);
+        printf("server: recv fd/%03d len/%d/%d\r\n", fd, buffLen, recvTotal);
 
         //在这里根据客户端的请求内容, 提供相应的回复
         if (strstr(buff, "hi~") != NULL)
@@ -362,8 +370,8 @@ void server_callBack(Ws_Server *wss, int fd, char *buff, int buffLen, WsData_Typ
     //非 websocket 数据包
     else
     {
-        // printf("server: recv fd/%03d len/%d/%d bad pkg %s\r\n", fd, -buffLen, wss->clientArray[fd_addr][2], buff);
-        printf("server: recv fd/%03d len/%d/%d bad pkg\r\n", fd, -buffLen, wss->clientArray[fd_addr][2]);
+        // printf("server: recv fd/%03d len/%d/%d bad pkg %s\r\n", fd, -buffLen, recvTotal, buff);
+        printf("server: recv fd/%03d len/%d/%d bad pkg\r\n", fd, -buffLen, recvTotal);
     }
 }
 
