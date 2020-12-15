@@ -58,11 +58,8 @@ int main(void)
         {
             printf("client(%d): recv len/%d %s\r\n", pid, ret, recv_buff);
 
-            //收到断开包
-            if (retPkgType == WDT_DISCONN)
-                break;
             //根据服务器下发内容做出反应
-            else if (strstr(recv_buff, "Hi~") != NULL)
+            if (strstr(recv_buff, "Hi~") != NULL)
             {
                 snprintf(send_buff, sizeof(send_buff), "I am client(%d)", pid);
                 ret = ws_send(fd, send_buff, strlen(send_buff), true, WDT_TXTDATA);
@@ -78,11 +75,25 @@ int main(void)
         //非包数据
         else if (ret < 0)
             printf("client(%d): recv len/%d bad pkg %s\r\n", pid, -ret, recv_buff);
-        //没有输据接收时,检查错误,是否连接已断开
-        else if (errno != EAGAIN && errno != EINTR)
+        else
         {
-            printf("client(%d): check error %d, disconnect now ...\r\n", pid, errno);
-            break;
+            //收到特殊包
+            if (retPkgType == WDT_DISCONN)
+            {
+                printf("client(%d): recv WDT_DISCONN \r\n", pid);
+                break;
+            }
+            else if (retPkgType == WDT_PING)
+                printf("client(%d): recv WDT_PING \r\n", pid);
+            else if (retPkgType == WDT_PONG)
+                printf("client(%d): recv WDT_PONG \r\n", pid);
+        
+            //没有输据接收时,检查错误,是否连接已断开
+            else if (errno != EAGAIN && errno != EINTR)
+            {
+                printf("client(%d): check error %d, disconnect now ...\r\n", pid, errno);
+                break;
+            }
         }
 
         //一个合格的客户端,应该定时给服务器发心跳
@@ -90,15 +101,15 @@ int main(void)
         if (heart > 3000)
         {
             heart = 0;
-
+#if 1
             //发送心跳
             snprintf(send_buff, sizeof(send_buff), "Heart from client(%d) %s", pid, ws_time());
             // ret = ws_send(fd, send_buff, sizeof(send_buff), true, WDT_TXTDATA); //大数据量压力测试
             ret = ws_send(fd, send_buff, strlen(send_buff), true, WDT_TXTDATA);
-
+#else
             //用ping包代替心跳
-            // ret =  ws_send(fd, NULL, 0, true, WDT_PING);
-
+            ret =  ws_send(fd, NULL, 0, true, WDT_PING);
+#endif
             //send返回异常, 连接已断开
             if (ret <= 0)
             {

@@ -1334,19 +1334,19 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
                 {
                     //自动 ping-pong
                     ws_send(fd, NULL, 0, false, WDT_PONG);
-                    printf("ws_recv: WDT_PING\r\n");
+                    // printf("ws_recv: WDT_PING\r\n");
                     retFinal = 0;
                 }
                 //收到 PONG 包
                 else if (retPkgType == WDT_PONG)
                 {
-                    printf("ws_recv: WDT_PONG\r\n");
+                    // printf("ws_recv: WDT_PONG\r\n");
                     retFinal = 0;
                 }
                 //收到 断连 包
                 else if (retPkgType == WDT_DISCONN)
                 {
-                    printf("ws_recv: WDT_DISCONN\r\n");
+                    // printf("ws_recv: WDT_DISCONN\r\n");
                     retFinal = 0;
                 }
                 //其它正常数据包

@@ -14,9 +14,9 @@ typedef enum
     WDT_MINDATA,  // 0x0：中间数据包
     WDT_TXTDATA,  // 0x1：txt类型数据包
     WDT_BINDATA,  // 0x2：bin类型数据包
-    WDT_DISCONN,  // 0x8：断开连接类型数据包 ws_recv 函数内自动 close
-    WDT_PING,     // 0x8：ping类型数据包 ws_recv 函数内自动处理
-    WDT_PONG,     // 0xA：pong类型数据包 ws_recv 函数内自动处理
+    WDT_DISCONN,  // 0x8：断开连接类型数据包 收到后需手动 close(fd)
+    WDT_PING,     // 0x8：ping类型数据包 ws_recv 函数内自动回复pong
+    WDT_PONG,     // 0xA：pong类型数据包
 } WsData_Type;
 
 int ws_connectToServer(char *ip, int port, char *path, int timeout);
