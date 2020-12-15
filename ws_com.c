@@ -1333,7 +1333,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
                 if (retPkgType == WDT_PING)
                 {
                     //自动 ping-pong
-                    ws_send(fd, NULL, 0, true, WDT_PONG);
+                    ws_send(fd, NULL, 0, false, WDT_PONG);
                     printf("ws_recv: WDT_PING\r\n");
                     retFinal = 0;
                 }

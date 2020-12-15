@@ -31,7 +31,7 @@ int main(void)
 
     //用本进程pid作为唯一标识
     pid = getpid();
-    printf("\r\n========== client(%d) start ! ==========\r\n\r\n", pid);
+    printf("client start pid/%d \r\n", pid);
 
     //2秒超时连接服务器
     if ((fd = ws_connectToServer(SERVER_IP, SERVER_PORT, "/null", 2000)) <= 0)
@@ -67,7 +67,7 @@ int main(void)
                 snprintf(send_buff, sizeof(send_buff), "I am client(%d)", pid);
                 ret = ws_send(fd, send_buff, strlen(send_buff), true, WDT_TXTDATA);
             }
-            
+
             //send返回异常, 连接已断开
             if (ret <= 0)
             {
@@ -132,7 +132,7 @@ int main(void)
     char send_buff[SEND_PKG_MAX];
     int fd, fr, fw;
     char frOver = 0, fwOver = 0;
-    
+
     fd = ws_connectToServer(SERVER_IP, SERVER_PORT, "/null", 2000);
     if (fd < 1)
     {
@@ -154,7 +154,7 @@ int main(void)
         goto exit_fr;
     }
 
-    while(!frOver && !fwOver)
+    while (!frOver || !fwOver)
     {
         //读文件,发数据
         if (!frOver)
@@ -170,30 +170,36 @@ int main(void)
                 frOver = 1;
         }
         //收数据
-        do {
+        do
+        {
             ret = ws_recv(fd, recv_buff, sizeof(recv_buff), &type);
-            if (ret > 0)
+            // type == WDT_BINDATA 暂且区分服务器服务器下发的其它推送内容,避免和文件数据混淆
+            if (ret > 0 && type == WDT_BINDATA)
             {
                 timeout = 0;
                 recvTotal += ret;
-                printf("recv %d/%d/%d bytes\r\n", ret, recvTotal, sendTotal);
+                printf("recv/%d total/%d send/%d bytes\r\n", ret, recvTotal, sendTotal);
                 write(fw, recv_buff, ret);
             }
             else if (ret < 0)
             {
                 timeout = 0;
                 recvTotal += -ret;
-                printf("recv %d/%d/%d bytes bad pkg\r\n", ret, recvTotal, sendTotal);
+                printf("recv/%d total/%d send/%d bytes bad pkg\r\n", ret, recvTotal, sendTotal);
             }
-            else
+            else if (frOver)
             {
-                timeout += 10;
-                if (timeout > 1000000)//1秒超时
+                timeout += 100;
+                //200ms超时
+                if (timeout > 200000 || recvTotal >= sendTotal)
                     fwOver = 1;
                 break;
             }
-        } while(ret != 0);
-        ws_delayus(10);
+            else
+                timeout = 0;
+        } while (ret != 0);
+
+        ws_delayus(100);
     }
 
     close(fw);
