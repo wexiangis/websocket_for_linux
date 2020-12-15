@@ -15,10 +15,10 @@
 
 #include "ws_com.h"
 
-//发包数据量 100K
+//发包数据量 10K
 #define SEND_PKG_MAX (10240)
 
-//收包缓冲区大小 100K+
+//收包缓冲区大小 10K+
 #define RECV_PKG_MAX (SEND_PKG_MAX + 16)
 
 //限制最大可接入客户端数量
@@ -44,12 +44,12 @@ typedef struct WsServer
     int port;
     bool exit;
     void (*server_callBack)(struct WsServer *wss, int fd, char *buff, int buffLen, WsData_Type type);
-    //[x][0]/fd, [x][1]/enable
-    int clientArray[EPOLL_RESPOND_NUM][2];
+    //[x][0]/fd, [x][1]/enable [x][2]/接收数据量
+    int clientArray[EPOLL_RESPOND_NUM][3];
 } Ws_Server;
 
 //记录客户端控制符,作为客户端唯一标识
-int arrayAdd(int array[][2], int arraySize, int fd)
+int arrayAdd(int array[][3], int arraySize, int fd)
 {
     int i;
     for (i = 0; i < arraySize; i++)
@@ -58,12 +58,13 @@ int arrayAdd(int array[][2], int arraySize, int fd)
         {
             array[i][0] = fd;
             array[i][1] = 1;
+            array[i][2] = 0;
             return 0;
         }
     }
     return -1;
 }
-int arrayRemove(int array[][2], int arraySize, int fd)
+int arrayRemove(int array[][3], int arraySize, int fd)
 {
     int i;
     for (i = 0; i < arraySize; i++)
@@ -72,12 +73,13 @@ int arrayRemove(int array[][2], int arraySize, int fd)
         {
             array[i][0] = 0;
             array[i][1] = 0;
+            array[i][2] = 0;
             return 0;
         }
     }
     return -1;
 }
-int arrayFind(int array[][2], int arraySize, int fd)
+int arrayFind(int array[][3], int arraySize, int fd)
 {
     int i;
     for (i = 0; i < arraySize; i++)
@@ -86,6 +88,18 @@ int arrayFind(int array[][2], int arraySize, int fd)
             return i;
     }
     return -1;
+}
+void arrayRecv(int array[][3], int arraySize, int fd, int recvBytes)
+{
+    int i;
+    for (i = 0; i < arraySize; i++)
+    {
+        if (array[i][0] == fd)
+        {
+            array[i][2] += recvBytes;
+            return;
+        }
+    }
 }
 
 //抛线程工具
@@ -102,7 +116,13 @@ int arrayFind(int array[][2], int arraySize, int fd)
 //    pthread_attr_destroy(&attr);
 //}
 
-//接收数据,自动连接客户端,连接异常返回非0
+/*
+ *  接收数据,自动连接客户端
+ *  返回: 
+ *      >0 有数据
+ *      =0 无数据
+ *      <0 异常
+ */
 int server_recv(Ws_Server *wss, int fd)
 {
     int ret;
@@ -110,6 +130,10 @@ int server_recv(Ws_Server *wss, int fd)
     WsData_Type retPkgType = WDT_NULL;
 
     ret = ws_recv(fd, buff, sizeof(buff), &retPkgType);
+
+    //接收数据量统计
+    if (ret != 0)
+        arrayRecv(wss->clientArray, EPOLL_RESPOND_NUM, fd, ret > 0 ? ret : (-ret));
 
     //这可能是一包客户端请求
     if (ret < 0 &&
@@ -139,7 +163,8 @@ int server_recv(Ws_Server *wss, int fd)
     else if (ret != 0 && wss->server_callBack)
         wss->server_callBack(wss, fd, buff, ret, retPkgType);
 
-    return 0;
+    //正常回复
+    return ret == 0 ? 0 : 1;
 }
 
 void server_thread(void *argv)
@@ -269,7 +294,12 @@ void server_thread(void *argv)
             //接收数据事件
             else if (events[count].events & EPOLLIN)
             {
-                if (server_recv(wss, events[count].data.fd) != 0)
+                //数据收完为止
+                do {
+                    ret = server_recv(wss, events[count].data.fd);
+                } while(ret > 0);
+                //异常情况
+                if (ret < 0)
                 {
                     printf("server: check error fd/%03d %d\r\n", events[count].data.fd, errno);
                     ev.data.fd = events[count].data.fd;
@@ -307,10 +337,16 @@ void server_thread(void *argv)
 void server_callBack(Ws_Server *wss, int fd, char *buff, int buffLen, WsData_Type type)
 {
     int ret = 0;
+    int fd_addr;
+    //
+    fd_addr = arrayFind(wss->clientArray, EPOLL_RESPOND_NUM, fd);
+    if (fd_addr < 0)
+        fd_addr = 0;
     //正常 websocket 数据包
     if (buffLen > 0)
     {
-        printf("server: recv fd/%03d len/%d %s\r\n", fd, buffLen, buff);
+        // printf("server: recv fd/%03d len/%d/%d %s\r\n", fd, buffLen, wss->clientArray[fd_addr][2], buff);
+        printf("server: recv fd/%03d len/%d/%d\r\n", fd, buffLen, wss->clientArray[fd_addr][2]);
 
         //在这里根据客户端的请求内容, 提供相应的回复
         if (strstr(buff, "hi~") != NULL)
@@ -326,7 +362,8 @@ void server_callBack(Ws_Server *wss, int fd, char *buff, int buffLen, WsData_Typ
     //非 websocket 数据包
     else
     {
-        printf("server: recv fd/%03d len/%d bad pkg %s\r\n", fd, -buffLen, buff);
+        // printf("server: recv fd/%03d len/%d/%d bad pkg %s\r\n", fd, -buffLen, wss->clientArray[fd_addr][2], buff);
+        printf("server: recv fd/%03d len/%d/%d bad pkg\r\n", fd, -buffLen, wss->clientArray[fd_addr][2]);
     }
 }
 

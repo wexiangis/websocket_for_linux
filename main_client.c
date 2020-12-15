@@ -7,15 +7,17 @@
 
 #include "ws_com.h"
 
-//发包数据量 100K
+//发包数据量 10K
 #define SEND_PKG_MAX (10240)
 
-//收包缓冲区大小 100K+
+//收包缓冲区大小 10K+
 #define RECV_PKG_MAX (SEND_PKG_MAX + 16)
 
 #define SERVER_IP "127.0.0.1"
 #define SERVER_PORT 9999
 #define SERVER_PATH "/"
+
+#if 1 // 发收包测试
 
 int main(void)
 {
@@ -110,3 +112,96 @@ int main(void)
     printf("client(%d): close\r\n", pid);
     return 0;
 }
+
+#else // 利用服务器回显,发收文件测试
+
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+
+//指定要读取的文件
+#define FILE_R "./1M.bin"
+//指定要写入的文件
+#define FILE_W "./save.txt"
+
+int main(void)
+{
+    int ret, total = 0, timeout = 0;
+    WsData_Type type;
+    char recv_buff[RECV_PKG_MAX];
+    char send_buff[SEND_PKG_MAX];
+    int fd, fr, fw;
+    char frOver = 0, fwOver = 0;
+    
+    fd = ws_connectToServer(SERVER_IP, SERVER_PORT, "/null", 2000);
+    if (fd < 1)
+    {
+        printf("connect failed \r\n");
+        return 1;
+    }
+
+    fr = open(FILE_R, O_RDONLY);
+    if (fr < 1)
+    {
+        printf("open FILE_R %s failed \r\n", FILE_R);
+        goto exit_ws;
+    }
+
+    fw = open(FILE_W, O_RDWR | O_CREAT, 0666);
+    if (fr < 1)
+    {
+        printf("open FILE_W %s failed \r\n", FILE_W);
+        goto exit_fr;
+    }
+
+    while(!frOver && !fwOver)
+    {
+        //读文件,发数据
+        if (!frOver)
+        {
+            ret = read(fr, send_buff, sizeof(send_buff));
+            if (ret > 0)
+            {
+                timeout = 0;
+                ret = ws_send(fd, send_buff, ret, true, WDT_BINDATA);
+            }
+            else
+                frOver = 1;
+        }
+        //收数据
+        do {
+            ret = ws_recv(fd, recv_buff, sizeof(recv_buff), &type);
+            if (ret > 0)
+            {
+                timeout = 0;
+                total += ret;
+                printf("recv %d/%d bytes\r\n", ret, total);
+                write(fw, recv_buff, ret);
+            }
+            else if (ret < 0)
+            {
+                timeout = 0;
+                total += -ret;
+                printf("recv bad pkg %d/%d bytes\r\n", ret, total);
+            }
+            else
+            {
+                timeout += 1;
+                if (timeout > 1000)
+                    fwOver = 1;
+                break;
+            }
+        } while(ret > 0);
+        ws_delayms(1);
+    }
+
+    close(fw);
+exit_fr:
+    close(fr);
+exit_ws:
+    close(fd);
+
+    return 0;
+}
+
+#endif
