@@ -1,25 +1,23 @@
 
 #include <stdio.h>
 #include <stdbool.h>
-#include <stdlib.h> //exit()
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h> //非阻塞宏
 #include <sys/ioctl.h>
-#include <sys/epoll.h> //epoll管理服务器的连接和接收触发
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
 #include <arpa/inet.h>
-#include <pthread.h> //使用多线程
+#include <pthread.h>
 
 #include "ws_com.h"
 
 /*
  *  websocket服务器通常有ip、port和路径3个参数
- * 
  *  写作"ws://ip:port/aaa/bb/cc",其中"/aaa/bb/cc"即为路径
- * 
  *  这里未作检查
  */
 #define SERVER_PATH "/" //"/aaa/bb/cc"
@@ -90,16 +88,17 @@ int client_recv(Ws_Client *wsc)
     int ret;
     char buff[RECV_PKG_MAX] = {0};
     WsData_Type retPkgType = WDT_NULL;
-    //
+
     ret = ws_recv(wsc->fd, buff, sizeof(buff), &retPkgType);
+
     //这可能是一包客户端请求
-    if (ret < 0 && !wsc->login &&
+    if (!wsc->login && ret < 0 &&
         strncmp(buff, "GET", 3) == 0 &&
         strstr(buff, "Sec-WebSocket-Key"))
     {
         //构建回复
         ret = ws_responseClient(wsc->fd, buff, ret, SERVER_PATH);
-        //连接成功后,再添加fd到数组
+        //连接成功,标记登录
         if (ret > 0)
         {
             printf("server: fd/%03d/%03d login \r\n", wsc->fd, *wsc->fdTotal);
@@ -113,6 +112,7 @@ int client_recv(Ws_Client *wsc)
     //接收数据量统计
     if (wsc->login && ret != 0)
         wsc->recvBytes += ret > 0 ? ret : (-ret);
+
     //收到特殊包
     if (retPkgType == WDT_DISCONN)
     {
@@ -137,14 +137,15 @@ void client_thread(void *argv)
     int ret;
     unsigned int intervalMs = 10;
     unsigned int loginTimeout = 0; //等待登录超时
-    char exitType = 0; //客户端断开原因
+    char exitType = 0;             //客户端断开原因
 
     printf("server: fd/%03d/%03d start \r\n", wsc->fd, *wsc->fdTotal);
 
     while (!wsc->exit)
     {
         //周期接收,每次收完为止
-        do {
+        do
+        {
             ret = client_recv(wsc);
         } while (ret > 0);
         //收包异常
@@ -165,14 +166,13 @@ void client_thread(void *argv)
         }
         ws_delayms(intervalMs);
     }
-
+    //断开原因
     if (exitType == 0)
         printf("server: fd/%03d/%03d disconnect \r\n", wsc->fd, *wsc->fdTotal);
     else if (exitType == 1)
         printf("server: fd/%03d/%03d disconnect by recv error \r\n", wsc->fd, *wsc->fdTotal);
     else if (exitType == 2)
         printf("server: fd/%03d/%03d disconnect by login timeout \r\n", wsc->fd, *wsc->fdTotal);
-
     //关闭控制符,释放内存
     close(wsc->fd);
     free(wsc);
@@ -192,31 +192,18 @@ void client_create(Ws_Server *wss, int fd)
             wss->client[i]->fdTotal = &wss->fdTotal;
             wss->client[i]->recvCallback = wss->recvCallback;
             new_thread(wss->client[i], &client_thread);
-            break;
+            return;
         }
     }
 }
 
-//移除客户端
+//移除客户端,fd=-1时移除所有
 void client_remove(Ws_Server *wss, int fd)
 {
     int i;
     for (i = 0; i < CLIENT_MAX; i++)
     {
-        if (wss->client[i] && wss->client[i]->fd == fd)
-        {
-            wss->fdTotal -= 1;
-            wss->client[i]->exit = true; //通知客户端线程结束连接
-            wss->client[i] = NULL;       //解除占用(内存在客户端线程中释放)
-        }
-    }
-}
-void client_removeAll(Ws_Server *wss)
-{
-    int i;
-    for (i = 0; i < CLIENT_MAX; i++)
-    {
-        if (wss->client[i])
+        if (wss->client[i] && (wss->client[i]->fd == fd || fd < 0))
         {
             wss->fdTotal -= 1;
             wss->client[i]->exit = true; //通知客户端线程结束连接
@@ -234,17 +221,16 @@ void server_thread(void *argv)
 
     socklen_t socAddrLen;
     struct sockaddr_in acceptAddr;
-    struct sockaddr_in serverAddr;
+    struct sockaddr_in serverAddr = {0};
 
     int epoll_fd;
-    int nfds;              //epoll监听事件发生的个数
-    struct epoll_event ev; //epoll事件结构体
+    int nfds;
+    struct epoll_event ev;
     struct epoll_event events[CLIENT_MAX];
 
-    memset(&serverAddr, 0, sizeof(serverAddr)); //数据初始化--清零
-    serverAddr.sin_family = AF_INET;            //设置为IP通信
-    serverAddr.sin_addr.s_addr = INADDR_ANY;    //服务器IP地址
-    serverAddr.sin_port = htons(wss->port);     //服务器端口号
+    serverAddr.sin_family = AF_INET;         //设置为IP通信
+    serverAddr.sin_addr.s_addr = INADDR_ANY; //服务器IP地址
+    serverAddr.sin_port = htons(wss->port);  //服务器端口号
     socAddrLen = sizeof(struct sockaddr_in);
 
     //socket init
@@ -279,8 +265,7 @@ void server_thread(void *argv)
     }
 
     //创建一个epoll控制符
-    epoll_fd = epoll_create(CLIENT_MAX);
-    if (epoll_fd < 0)
+    if ((epoll_fd = epoll_create(CLIENT_MAX)) < 0)
     {
         printf("server: epoll_create failed\r\n");
         goto server_exit1;
@@ -298,12 +283,11 @@ void server_thread(void *argv)
     printf("server start \r\n");
     while (!wss->exit)
     {
-        //等待事件发生, -1表示阻塞、其它数值为超时
+        //等待事件发生,-1阻塞,0/非阻塞,其它数值为超时
         if ((nfds = epoll_wait(epoll_fd, events, CLIENT_MAX, -1)) < 0)
         {
             printf("server: epoll_wait failed\r\n");
-            close(epoll_fd);
-            return;
+            break;
         }
         for (count = 0; count < nfds; count++)
         {
@@ -337,7 +321,7 @@ void server_thread(void *argv)
     }
 
     //移除客户端
-    client_removeAll(wss);
+    client_remove(wss, -1);
 server_exit2:
     //关闭epoll控制符
     close(epoll_fd);
@@ -362,16 +346,11 @@ void recvCallback(void *argv, char *buff, int len, WsData_Type type)
 {
     int ret = 0;
     Ws_Client *wsc = (Ws_Client *)argv;
-
     //正常 websocket 数据包
     if (len > 0)
     {
-        if (len < 128)
-            printf("server: fd/%03d/%03d recv/%d/%d bytes %s\r\n",
-                   wsc->fd, *wsc->fdTotal, len, wsc->recvBytes, buff);
-        else
-            printf("server: fd/%03d/%03d recv/%d/%d bytes\r\n",
-                   wsc->fd, *wsc->fdTotal, len, wsc->recvBytes);
+        printf("server: fd/%03d/%03d recv/%d/%d bytes %s\r\n",
+               wsc->fd, *wsc->fdTotal, len, wsc->recvBytes, len < 128 ? buff : " ");
 
         //在这里根据客户端的请求内容, 提供相应的回复
         if (strstr(buff, "hi~") != NULL)
@@ -386,14 +365,8 @@ void recvCallback(void *argv, char *buff, int len, WsData_Type type)
     }
     //非 websocket 数据包
     else
-    {
-        if (len < 128)
-            printf("server: fd/%03d/%03d recv/%d/%d bytes bad pkg %s\r\n",
-                   wsc->fd, *wsc->fdTotal, len, wsc->recvBytes, buff);
-        else
-            printf("server: fd/%03d/%03d recv/%d/%d bytes bad pkg\r\n",
-                   wsc->fd, *wsc->fdTotal, len, wsc->recvBytes);
-    }
+        printf("server: fd/%03d/%03d recv/%d/%d bytes bad pkg %s\r\n",
+               wsc->fd, *wsc->fdTotal, len, wsc->recvBytes, len < 128 ? buff : " ");
 }
 
 int main(void)
