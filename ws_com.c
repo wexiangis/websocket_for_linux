@@ -1233,7 +1233,7 @@ int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
 int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
 {
     int32_t ret;
-    int32_t retRecv, retDePkg;
+    int32_t retRecv = 0, retDePkg;
     uint32_t retDataLen = 0;
     uint32_t retHeadLen = 0;
     int32_t retFinal = 0;
@@ -1243,14 +1243,20 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
 #ifdef WS_DEBUG
     uint32_t i;
 #endif
-    //参数检查
-    if (dataMaxLen < 16)
+    //丢弃数据
+    if (!data || dataMaxLen < 1)
     {
-        printf("ws_recv error !! min dataMaxLen >= 16 \r\n");
-        return 0;
+        while (recv(fd, tmp, sizeof(tmp), MSG_NOSIGNAL) > 0)
+            ;
     }
     //先接收数据头部,头部最大2+4+8=14字节
-    retRecv = recv(fd, data, 14, MSG_NOSIGNAL);
+    else
+    {
+        if (dataMaxLen < 16)
+            printf("ws_recv error !! dataMaxLen must be >= 16 \r\n");
+        else
+            retRecv = recv(fd, data, 14, MSG_NOSIGNAL);
+    }
     if (retRecv > 0)
     {
         //数据解包
@@ -1275,7 +1281,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
 #ifdef WS_DEBUG
             //显示数据
             printf("ws_recv1: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
-                retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
+                   retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
             for (i = 0; i < retRecv; i++)
                 printf("%.2X ", (uint8_t)data[i]);
             printf("\r\n");
@@ -1310,7 +1316,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
 #ifdef WS_DEBUG
                 //显示数据
                 printf("ws_recv2: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
-                    retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
+                       retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
                 for (i = 0; i < retRecv; i++)
                     printf("%.2X ", (uint8_t)data[i]);
                 printf("\r\n");
@@ -1321,7 +1327,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
 #ifdef WS_DEBUG
             //显示数据
             printf("ws_recv3: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
-                retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
+                   retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
             for (i = 0; i < retRecv; i++)
                 printf("%.2X ", (uint8_t)data[i]);
             printf("\r\n");

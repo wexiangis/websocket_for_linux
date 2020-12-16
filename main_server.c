@@ -55,6 +55,7 @@ typedef struct WsClient
 typedef struct WsServer
 {
     int fd; //服务器控制符
+    int fd_epoll; //epoll控制符
     int fdTotal; //当前接入客户端总数
     int port;
     bool exit; //线程结束标志
@@ -76,12 +77,23 @@ void new_thread(void *obj, void *callback)
     pthread_attr_destroy(&attr);
 }
 
+//注意在"epoll_wait时"或"目标fd已close()"的情况下会ctrl会失败
+void _epoll_ctrl(int fd_epoll, int fd, uint32_t event, int ctrl)
+{
+    struct epoll_event ev;
+    ev.events = event;
+    ev.data.fd = fd;
+    if (epoll_ctl(fd_epoll, ctrl, fd, &ev) != 0)
+        printf("epoll ctrl %d error !!\r\n", ctrl);
+}
+
 /*
  *  接收数据,自动连接客户端
  *  返回: 
  *      >0 有数据
  *      =0 无数据
- *      <0 异常
+ *      -1 登录失败
+ *      -2 WDT_DISCONN包
  */
 int client_recv(Ws_Client *wsc)
 {
@@ -112,12 +124,10 @@ int client_recv(Ws_Client *wsc)
     //接收数据量统计
     if (wsc->login && ret != 0)
         wsc->recvBytes += ret > 0 ? ret : (-ret);
-
     //收到特殊包
-    if (retPkgType == WDT_DISCONN)
-    {
+    if (retPkgType == WDT_DISCONN) {
         printf("server: fd/%03d/%03d recv WDT_DISCONN \r\n", wsc->fd, *wsc->fdTotal);
-        return -1;
+        return -2;
     }
     else if (retPkgType == WDT_PING)
         printf("server: fd/%03d/%03d recv WDT_PING \r\n", wsc->fd, *wsc->fdTotal);
@@ -138,20 +148,17 @@ void client_thread(void *argv)
     unsigned int intervalMs = 10;
     unsigned int loginTimeout = 0; //等待登录超时
     char exitType = 0;             //客户端断开原因
-
     printf("server: fd/%03d/%03d start \r\n", wsc->fd, *wsc->fdTotal);
-
-    while (!wsc->exit)
+    while (!wsc->exit && !wsc->err)
     {
         //周期接收,每次收完为止
-        do
-        {
+        do {
             ret = client_recv(wsc);
         } while (ret > 0);
         //收包异常
         if (ret < 0)
         {
-            exitType = 1;
+            exitType = ret == (-1) ? 1 : 2;
             break;
         }
         //连接后半天不登录,踢出客户端
@@ -160,21 +167,29 @@ void client_thread(void *argv)
             loginTimeout += intervalMs;
             if (loginTimeout > 5000)
             {
-                exitType = 2;
+                exitType = 3;
                 break;
             }
         }
         ws_delayms(intervalMs);
     }
+    //标记异常,请求移除
+    wsc->err = true;
+    //等待被server_thread移除
+    while (!wsc->exit)
+        ws_delayms(100);
+    //关闭控制符
+    close(wsc->fd);
     //断开原因
     if (exitType == 0)
-        printf("server: fd/%03d/%03d disconnect \r\n", wsc->fd, *wsc->fdTotal);
+        printf("server: fd/%03d/%03d disconnect by epoll\r\n", wsc->fd, *wsc->fdTotal);
     else if (exitType == 1)
-        printf("server: fd/%03d/%03d disconnect by recv error \r\n", wsc->fd, *wsc->fdTotal);
+        printf("server: fd/%03d/%03d disconnect by login failed \r\n", wsc->fd, *wsc->fdTotal);
     else if (exitType == 2)
+        printf("server: fd/%03d/%03d disconnect by pkg WDT_DISCONN \r\n", wsc->fd, *wsc->fdTotal);
+    else if (exitType == 3)
         printf("server: fd/%03d/%03d disconnect by login timeout \r\n", wsc->fd, *wsc->fdTotal);
-    //关闭控制符,释放内存
-    close(wsc->fd);
+    //释放内存
     free(wsc);
 }
 
@@ -212,20 +227,34 @@ void client_remove(Ws_Server *wss, int fd)
     }
 }
 
+//检测异常客户端并移除
+void client_check(Ws_Server *wss)
+{
+    int i;
+    for (i = 0; i < CLIENT_MAX; i++)
+    {
+        if (wss->client[i] && wss->client[i]->err)
+        {
+            //从epoll监听列表中移除控制符
+            _epoll_ctrl(wss->fd_epoll, wss->client[i]->fd, 0, EPOLL_CTL_DEL);
+            //移除客户端
+            client_remove(wss, wss->client[i]->fd);
+        }
+    }
+}
+
 //服务器主线程,负责检测 新客户端接入 及 客户端断开
 void server_thread(void *argv)
 {
     Ws_Server *wss = (Ws_Server *)argv;
     int ret, count;
-    int accept_fd;
+    int fd_accept;
 
     socklen_t socAddrLen;
     struct sockaddr_in acceptAddr;
     struct sockaddr_in serverAddr = {0};
 
-    int epoll_fd;
     int nfds;
-    struct epoll_event ev;
     struct epoll_event events[CLIENT_MAX];
 
     serverAddr.sin_family = AF_INET;         //设置为IP通信
@@ -234,11 +263,10 @@ void server_thread(void *argv)
     socAddrLen = sizeof(struct sockaddr_in);
 
     //socket init
-    wss->fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (wss->fd <= 0)
+    if ((wss->fd = socket(AF_INET, SOCK_STREAM, 0)) <= 0)
     {
         printf("server: create socket failed\r\n");
-        goto server_exit0;
+        return;
     }
 
     //设置为非阻塞接收
@@ -252,7 +280,7 @@ void server_thread(void *argv)
         if (++count > BIND_TIMEOUTMS)
         {
             printf("server: bind timeout %d 服务器端口占用中,请稍候再试\r\n", count);
-            goto server_exit0;
+            goto server_exit;
         }
         ws_delayms(1);
     }
@@ -261,30 +289,19 @@ void server_thread(void *argv)
     if (listen(wss->fd, 0) != 0)
     {
         printf("server: listen failed\r\n");
-        goto server_exit1;
+        goto server_exit;
     }
 
     //创建一个epoll控制符
-    if ((epoll_fd = epoll_create(CLIENT_MAX)) < 0)
-    {
-        printf("server: epoll_create failed\r\n");
-        goto server_exit1;
-    }
-
+    wss->fd_epoll = epoll_create(CLIENT_MAX);
     //向epoll注册server_sockfd监听事件
-    ev.events = EPOLLIN | EPOLLET;
-    ev.data.fd = wss->fd;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, wss->fd, &ev) < 0)
-    {
-        printf("server: epll_ctl register failed\r\n");
-        goto server_exit2;
-    }
+    _epoll_ctrl(wss->fd_epoll, wss->fd, EPOLLIN | EPOLLET, EPOLL_CTL_ADD);
 
     printf("server start \r\n");
     while (!wss->exit)
     {
         //等待事件发生,-1阻塞,0/非阻塞,其它数值为超时
-        if ((nfds = epoll_wait(epoll_fd, events, CLIENT_MAX, -1)) < 0)
+        if ((nfds = epoll_wait(wss->fd_epoll, events, CLIENT_MAX, 1)) < 0)
         {
             printf("server: epoll_wait failed\r\n");
             break;
@@ -295,8 +312,7 @@ void server_thread(void *argv)
             if ((events[count].events & EPOLLERR) || (events[count].events & EPOLLHUP))
             {
                 //从epoll监听列表中移除控制符
-                ev.data.fd = events[count].data.fd;
-                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[count].data.fd, &ev);
+                _epoll_ctrl(wss->fd_epoll, events[count].data.fd, 0, EPOLL_CTL_DEL);
                 //移除客户端
                 client_remove(wss, events[count].data.fd);
             }
@@ -304,31 +320,31 @@ void server_thread(void *argv)
             //新通道接入事件
             else if (events[count].data.fd == wss->fd)
             {
-                accept_fd = accept(wss->fd, (struct sockaddr *)&acceptAddr, &socAddrLen);
-                if (accept_fd >= 0)
+                fd_accept = accept(wss->fd, (struct sockaddr *)&acceptAddr, &socAddrLen);
+                if (fd_accept >= 0)
                 {
                     //创建客户端线程
-                    client_create(wss, accept_fd);
+                    client_create(wss, fd_accept);
                     //添加控制符到epoll监听列表
-                    ev.data.fd = accept_fd;
-                    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, accept_fd, &ev);
+                    _epoll_ctrl(wss->fd_epoll, fd_accept, 0, EPOLL_CTL_ADD);
                 }
             }
             //接收数据事件
             else if (events[count].events & EPOLLIN)
                 ;
+            else
+                printf("epoll event %X\r\n", events[count].events);
         }
+        //异常客户端检查
+        client_check(wss);
     }
-
     //移除客户端
     client_remove(wss, -1);
-server_exit2:
     //关闭epoll控制符
-    close(epoll_fd);
-server_exit1:
+    close(wss->fd_epoll);
+server_exit:
     //关闭socket
     close(wss->fd);
-server_exit0:
     wss->exit = true;
     //释放内存
     // free(wss);
@@ -344,21 +360,19 @@ server_exit0:
  */
 void recvCallback(void *argv, char *buff, int len, WsData_Type type)
 {
-    int ret = 0;
     Ws_Client *wsc = (Ws_Client *)argv;
+    int ret = 0;
     //正常 websocket 数据包
     if (len > 0)
     {
         printf("server: fd/%03d/%03d recv/%d/%d bytes %s\r\n",
                wsc->fd, *wsc->fdTotal, len, wsc->recvBytes, len < 128 ? buff : " ");
-
         //在这里根据客户端的请求内容, 提供相应的回复
         if (strstr(buff, "hi~") != NULL)
             ret = ws_send(wsc->fd, "hi~ I am server", 15, false, WDT_TXTDATA);
         //回显,收到什么回复什么
         else
             ret = ws_send(wsc->fd, buff, len, false, type);
-
         //发送失败,标记异常
         if (ret < 0)
             wsc->err = true;
@@ -385,7 +399,6 @@ int main(void)
     while (!wss.exit)
     {
         ws_delayms(3000);
-
         //每3秒推送信息给所有客户端
         for (i = 0; i < CLIENT_MAX; i++)
         {
@@ -397,7 +410,7 @@ int main(void)
                 // if (ws_send(wss.client[i]->fd, buff, sizeof(buff), false, WDT_TXTDATA) < 0) //大数据量压力测试
                 if (ws_send(wss.client[i]->fd, buff, strlen(buff), false, WDT_TXTDATA) < 0)
                 {
-                    //发送失败,标记损坏
+                    //发送失败,标记异常
                     wss.client[i]->err = true;
                 }
             }

@@ -203,7 +203,11 @@ int main(void)
                 timeout += 100;
                 //200ms超时
                 if (timeout > 200000 || recvTotal >= sendTotal)
+                {
                     fwOver = 1;
+                    //主动断连
+                    ws_send(fd, NULL, 0, false, WDT_DISCONN);
+                }
                 break;
             }
             else

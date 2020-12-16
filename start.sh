@@ -1,7 +1,7 @@
 
 # 客户端数量
 # 注意不要超过 main_server.c 中宏定义 CLIENT_MAX 定义的数量
-cNum=10
+cNum=100
 
 echo ""
 echo ">>>>>>>>>> 使用 kill_test.sh 关闭测试进程 <<<<<<<<<<"
@@ -16,7 +16,7 @@ sleep 1
 while [ $cNum -gt 0 ] ; do
     cNum=`expr $cNum - 1`
     ./client &
-    sleep 0.01
+    # sleep 0.01
 done
 
 sleep 30
