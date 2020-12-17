@@ -385,8 +385,11 @@ void onMessage(void *argv, char *msg, int msgLen, WsData_Type type)
     }
     //非 websocket 数据包
     else
+    {
+        msgLen = -msgLen;
         printf("onMessage: fd/%03d/%03d recv/%d/%d bytes bad pkg %s\r\n",
                wsc->fd, *wsc->fdTotal, msgLen, wsc->recvBytes, msgLen < 128 ? msg : " ");
+    }
 }
 
 //客户端接入时(已连上),你要做什么?
