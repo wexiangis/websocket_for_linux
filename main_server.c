@@ -15,14 +15,7 @@
 
 #include "ws_com.h"
 
-/*
- *  websocket服务器通常有ip、port和路径3个参数
- *  写作"ws://ip:port/aaa/bb/cc",其中"/aaa/bb/cc"即为路径
- *  这里未作检查
- */
-#define SERVER_PATH "/" //"/aaa/bb/cc"
-
-#define SERVER_PORT 9999
+// ================== 服务器内部功能实现 ===================
 
 //发包数据量 10K
 #define SEND_PKG_MAX (10240)
@@ -36,19 +29,25 @@
 //bind超时ms(通常为服务器端口被占用,或者有客户端还连着上次的服务器)
 #define BIND_TIMEOUTMS 1000
 
-//客户端数据接收回调函数原型
-typedef void (*RecvCallback)(void *obj, char *buff, int len, WsData_Type type);
+//客户端事件回调函数原型
+typedef void (*OnLogin)(void *obj);
+typedef void (*OnExit)(void *obj, int exitType);
+typedef void (*OnMessage)(void *obj, char *msg, int msgLen, WsData_Type type);
 
 //客户端线程使用的参数结构体
 typedef struct WsClient
 {
     int fd; //accept之后得到的客户端连接控制符
     int *fdTotal; //当前接入客户端总数
+    char *path; //服务器路径
     bool login; //是否完成websocket登录验证
     bool exit; //线程结束标志
     bool err; //异常标志
     unsigned int recvBytes; //总接收字节计数
-    RecvCallback recvCallback;
+    void *privateData; //用指针传递自己的数据到回调函数里使用,而不是全局变量
+    OnLogin onLogin;
+    OnExit onExit;
+    OnMessage onMessage;
 } Ws_Client;
 
 //服务器线程使用的参数结构体
@@ -57,10 +56,14 @@ typedef struct WsServer
     int fd; //服务器控制符
     int fd_epoll; //epoll控制符
     int fdTotal; //当前接入客户端总数
-    int port;
+    int port; //服务器端口
+    char path[128]; //服务器路径
     bool exit; //线程结束标志
+    void *privateData; //用指针传递自己的数据到回调函数里使用,而不是全局变量
     Ws_Client *client[CLIENT_MAX]; //当前接入客户端列表
-    RecvCallback recvCallback;
+    OnLogin onLogin;
+    OnExit onExit;
+    OnMessage onMessage;
 } Ws_Server;
 
 //抛线程工具
@@ -109,12 +112,16 @@ int client_recv(Ws_Client *wsc)
         strstr(buff, "Sec-WebSocket-Key"))
     {
         //构建回复
-        ret = ws_responseClient(wsc->fd, buff, ret, SERVER_PATH);
+        ret = ws_responseClient(wsc->fd, buff, ret, wsc->path);
         //连接成功,标记登录
         if (ret > 0)
         {
-            printf("server: fd/%03d/%03d login \r\n", wsc->fd, *wsc->fdTotal);
+            //这个延时很有必要,否则下面onLogin里面发东西客户端可能收不到
+            ws_delayms(5);
             wsc->login = true;
+            //回调
+            if (wsc->onLogin)
+                wsc->onLogin(wsc);
             return 0;
         }
         //发送失败,连接断开
@@ -124,18 +131,19 @@ int client_recv(Ws_Client *wsc)
     //接收数据量统计
     if (wsc->login && ret != 0)
         wsc->recvBytes += ret > 0 ? ret : (-ret);
-    //收到特殊包
-    if (retPkgType == WDT_DISCONN) {
-        printf("server: fd/%03d/%03d recv WDT_DISCONN \r\n", wsc->fd, *wsc->fdTotal);
+    //收到特殊包(由于这些比较底层,所以没有放到onMessage事件)
+    if (retPkgType == WDT_DISCONN)
+    {
+        printf("specialPkg: fd/%03d/%03d recv WDT_DISCONN \r\n", wsc->fd, *wsc->fdTotal);
         return -2;
     }
     else if (retPkgType == WDT_PING)
-        printf("server: fd/%03d/%03d recv WDT_PING \r\n", wsc->fd, *wsc->fdTotal);
+        printf("specialPkg: fd/%03d/%03d recv WDT_PING \r\n", wsc->fd, *wsc->fdTotal);
     else if (retPkgType == WDT_PONG)
-        printf("server: fd/%03d/%03d recv WDT_PONG \r\n", wsc->fd, *wsc->fdTotal);
+        printf("specialPkg: fd/%03d/%03d recv WDT_PONG \r\n", wsc->fd, *wsc->fdTotal);
     //回调
-    else if (ret != 0 && wsc->recvCallback)
-        wsc->recvCallback(wsc, buff, ret, retPkgType);
+    else if (ret != 0 && wsc->onMessage)
+        wsc->onMessage(wsc, buff, ret, retPkgType);
     //正常返回
     return ret == 0 ? 0 : 1;
 }
@@ -147,12 +155,13 @@ void client_thread(void *argv)
     int ret;
     unsigned int intervalMs = 10;
     unsigned int loginTimeout = 0; //等待登录超时
-    char exitType = 0;             //客户端断开原因
-    printf("server: fd/%03d/%03d start \r\n", wsc->fd, *wsc->fdTotal);
+    int exitType = 0;              //客户端断开原因
+
     while (!wsc->exit && !wsc->err)
     {
         //周期接收,每次收完为止
-        do {
+        do
+        {
             ret = client_recv(wsc);
         } while (ret > 0);
         //收包异常
@@ -177,18 +186,12 @@ void client_thread(void *argv)
     wsc->err = true;
     //等待被server_thread移除
     while (!wsc->exit)
-        ws_delayms(100);
+        ws_delayms(50);
+    //回调
+    if (wsc->onExit)
+        wsc->onExit(wsc, exitType);
     //关闭控制符
     close(wsc->fd);
-    //断开原因
-    if (exitType == 0)
-        printf("server: fd/%03d/%03d disconnect by epoll\r\n", wsc->fd, *wsc->fdTotal);
-    else if (exitType == 1)
-        printf("server: fd/%03d/%03d disconnect by login failed \r\n", wsc->fd, *wsc->fdTotal);
-    else if (exitType == 2)
-        printf("server: fd/%03d/%03d disconnect by pkg WDT_DISCONN \r\n", wsc->fd, *wsc->fdTotal);
-    else if (exitType == 3)
-        printf("server: fd/%03d/%03d disconnect by login timeout \r\n", wsc->fd, *wsc->fdTotal);
     //释放内存
     free(wsc);
 }
@@ -205,7 +208,11 @@ void client_create(Ws_Server *wss, int fd)
             wss->client[i] = (Ws_Client *)calloc(1, sizeof(Ws_Client));
             wss->client[i]->fd = fd;
             wss->client[i]->fdTotal = &wss->fdTotal;
-            wss->client[i]->recvCallback = wss->recvCallback;
+            wss->client[i]->path = wss->path;
+            wss->client[i]->privateData = wss->privateData;
+            wss->client[i]->onLogin = wss->onLogin;
+            wss->client[i]->onExit = wss->onExit;
+            wss->client[i]->onMessage = wss->onMessage;
             new_thread(wss->client[i], &client_thread);
             return;
         }
@@ -300,8 +307,8 @@ void server_thread(void *argv)
     printf("server start \r\n");
     while (!wss->exit)
     {
-        //等待事件发生,-1阻塞,0/非阻塞,其它数值为超时
-        if ((nfds = epoll_wait(wss->fd_epoll, events, CLIENT_MAX, 1)) < 0)
+        //等待事件发生,-1阻塞,0/非阻塞,其它数值为超时ms
+        if ((nfds = epoll_wait(wss->fd_epoll, events, CLIENT_MAX, 500)) < 0)
         {
             printf("server: epoll_wait failed\r\n");
             break;
@@ -316,7 +323,6 @@ void server_thread(void *argv)
                 //移除客户端
                 client_remove(wss, events[count].data.fd);
             }
-
             //新通道接入事件
             else if (events[count].data.fd == wss->fd)
             {
@@ -332,8 +338,6 @@ void server_thread(void *argv)
             //接收数据事件
             else if (events[count].events & EPOLLIN)
                 ;
-            else
-                printf("epoll event %X\r\n", events[count].events);
         }
         //异常客户端检查
         client_check(wss);
@@ -350,52 +354,83 @@ server_exit:
     // free(wss);
 }
 
+// ================== 服务器开发需要关心的部分 ===================
+
 /*
- *  客户端数据接收回调
+ *  接收数据回调
  *  参数:
- *      wsc: 
- *      buff: 解包后的最终数据
- *      buffLen: 数据量, 为负值时表示非标准包的数据量
- *      type: 包类型
+ *      argv: 客户端信息结构体指针
+ *      msg: 接收数据内容
+ *      msgLen: >0时为websocket数据包,<0时为非包数据,没有=0的情况
+ *      type： websocket包类型
  */
-void recvCallback(void *argv, char *buff, int len, WsData_Type type)
+void onMessage(void *argv, char *msg, int msgLen, WsData_Type type)
 {
-    Ws_Client *wsc = (Ws_Client *)argv;
     int ret = 0;
+    Ws_Client *wsc = (Ws_Client *)argv;
     //正常 websocket 数据包
-    if (len > 0)
+    if (msgLen > 0)
     {
-        printf("server: fd/%03d/%03d recv/%d/%d bytes %s\r\n",
-               wsc->fd, *wsc->fdTotal, len, wsc->recvBytes, len < 128 ? buff : " ");
+        printf("onMessage: fd/%03d/%03d recv/%d/%d bytes %s\r\n",
+               wsc->fd, *wsc->fdTotal, msgLen, wsc->recvBytes, msgLen < 128 ? msg : " ");
         //在这里根据客户端的请求内容, 提供相应的回复
-        if (strstr(buff, "hi~") != NULL)
-            ret = ws_send(wsc->fd, "hi~ I am server", 15, false, WDT_TXTDATA);
+        if (strstr(msg, "Say hi~") != NULL)
+            ;
         //回显,收到什么回复什么
         else
-            ret = ws_send(wsc->fd, buff, len, false, type);
-        //发送失败,标记异常
+            ret = ws_send(wsc->fd, msg, msgLen, false, type);
+        //发送失败,标记异常(后续会被自动回收)
         if (ret < 0)
             wsc->err = true;
     }
     //非 websocket 数据包
     else
-        printf("server: fd/%03d/%03d recv/%d/%d bytes bad pkg %s\r\n",
-               wsc->fd, *wsc->fdTotal, len, wsc->recvBytes, len < 128 ? buff : " ");
+        printf("onMessage: fd/%03d/%03d recv/%d/%d bytes bad pkg %s\r\n",
+               wsc->fd, *wsc->fdTotal, msgLen, wsc->recvBytes, msgLen < 128 ? msg : " ");
+}
+
+//客户端接入时(已连上),你要做什么?
+void onLogin(void *argv)
+{
+    Ws_Client *wsc = (Ws_Client *)argv;
+    printf("onLogin: fd/%03d/%03d login \r\n", wsc->fd, *wsc->fdTotal);
+    //打招呼
+    ws_send(wsc->fd, "Say hi~ I am server", 19, false, WDT_TXTDATA);
+}
+
+//客户端断开时(已断开),你要做什么?
+void onExit(void *argv, int exitType)
+{
+    Ws_Client *wsc = (Ws_Client *)argv;
+    //断开原因
+    if (exitType == 0)
+        printf("onExit: fd/%03d/%03d disconnect by epoll\r\n", wsc->fd, *wsc->fdTotal);
+    else if (exitType == 1)
+        printf("onExit: fd/%03d/%03d disconnect by login failed \r\n", wsc->fd, *wsc->fdTotal);
+    else if (exitType == 2)
+        printf("onExit: fd/%03d/%03d disconnect by pkg WDT_DISCONN \r\n", wsc->fd, *wsc->fdTotal);
+    else if (exitType == 3)
+        printf("onExit: fd/%03d/%03d disconnect by login timeout \r\n", wsc->fd, *wsc->fdTotal);
 }
 
 int main(void)
 {
     int i;
     char buff[SEND_PKG_MAX];
-    Ws_Server wss = {0};
 
-    //初始化服务器参数
-    wss.port = SERVER_PORT;
-    //收到客户端数据时,需要干嘛?
-    wss.recvCallback = &recvCallback;
+    //服务器必须参数
+    Ws_Server wss = {
+        .port = 9999, //服务器端口
+        .path = "/", //服务器路径(这样写表示路径为空)
+        .privateData = NULL,//指向自己的数据的指针,回调函数里使用 wsc->privateData 取回
+        .onLogin = &onLogin, //客户端接入时(已连上),你要做什么?
+        .onExit = &onExit, //客户端断开时(已断开),你要做什么?
+        .onMessage = &onMessage, //收到客户端数据时,你要做什么?
+    };
     //开辟线程,管理服务器
     new_thread(&wss, &server_thread);
 
+    //服务器启动至少先等3秒(有时会bind超时)
     while (!wss.exit)
     {
         ws_delayms(3000);
@@ -418,6 +453,6 @@ int main(void)
     }
 
     wss.exit = true;
-    printf("server close !\r\n");
+    printf("server exit \r\n");
     return 0;
 }

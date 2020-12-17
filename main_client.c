@@ -40,17 +40,9 @@ int main(void)
         return -1;
     }
 
-    ws_delayms(100);
-
-    //发出第一条信息
-    snprintf(send_buff, sizeof(send_buff), "Say hi~ from client(%d)", pid);
-    ws_send(fd, send_buff, strlen(send_buff), true, WDT_TXTDATA);
-
     //循环接收服务器下发
     while (1)
     {
-        ws_delayms(10);
-
         //接收数据
         ret = ws_recv(fd, recv_buff, sizeof(recv_buff), &retPkgType);
         //正常包
@@ -59,11 +51,13 @@ int main(void)
             printf("client(%d): recv len/%d %s\r\n", pid, ret, recv_buff);
 
             //根据服务器下发内容做出反应
-            if (strstr(recv_buff, "Hi~") != NULL)
+            if (strstr(recv_buff, "Say hi~") != NULL)
             {
-                snprintf(send_buff, sizeof(send_buff), "I am client(%d)", pid);
+                snprintf(send_buff, sizeof(send_buff), "Say hi~ I am client(%d)", pid);
                 ret = ws_send(fd, send_buff, strlen(send_buff), true, WDT_TXTDATA);
             }
+            else if (strstr(recv_buff, "I am ") != NULL)
+                ;
 
             //send返回异常, 连接已断开
             if (ret <= 0)
@@ -117,6 +111,8 @@ int main(void)
                 break;
             }
         }
+        
+        ws_delayms(10);
     }
 
     close(fd);
