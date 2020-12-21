@@ -1,11 +1,11 @@
 
 # 客户端数量
 # 注意不要超过 main_server.c 中宏定义 CLIENT_MAX 定义的数量
-cNum=100
+cNum=10
 
 echo ""
 echo ">>>>>>>>>> 使用 kill_test.sh 关闭测试进程 <<<<<<<<<<"
-echo ">>>>>>>>>>     测试在 30 秒后自动结束    <<<<<<<<<<"
+echo ">>>>>>>>>>     测试在 20 秒后自动结束    <<<<<<<<<<"
 echo ">>>>>>>>>>         客户端数量 $cNum       <<<<<<<<<<"
 
 sleep 1
@@ -19,11 +19,11 @@ while [ $cNum -gt 0 ] ; do
     # sleep 0.01
 done
 
-sleep 30
+sleep 20
 
 # 关闭进程
 killall client
-sleep 1
+sleep 5
 killall server
 sleep 1
 

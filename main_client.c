@@ -154,7 +154,7 @@ int main(void)
         goto exit_ws;
     }
 
-    fw = open(FILE_W, O_RDWR | O_CREAT, 0666);
+    fw = open(FILE_W, O_RDWR | O_CREAT | O_TRUNC, 0666);
     if (fw < 1)
     {
         printf("open FILE_W %s failed \r\n", FILE_W);

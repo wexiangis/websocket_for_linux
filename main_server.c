@@ -155,13 +155,12 @@ void client_thread(void *argv)
     int ret;
     unsigned int intervalMs = 10;
     unsigned int loginTimeout = 0; //等待登录超时
-    int exitType = 0;              //客户端断开原因
+    int exitType = 0; //客户端断开原因
 
     while (!wsc->exit && !wsc->err)
     {
         //周期接收,每次收完为止
-        do
-        {
+        do {
             ret = client_recv(wsc);
         } while (ret > 0);
         //收包异常
@@ -184,12 +183,12 @@ void client_thread(void *argv)
     }
     //标记异常,请求移除
     wsc->err = true;
-    //等待被server_thread移除
-    while (!wsc->exit)
-        ws_delayms(50);
     //回调
     if (wsc->onExit)
         wsc->onExit(wsc, exitType);
+    //等待被server_thread移除
+    while (!wsc->exit)
+        ws_delayms(50);
     //关闭控制符
     close(wsc->fd);
     //释放内存
