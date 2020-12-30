@@ -33,8 +33,9 @@ int main(void)
     pid = getpid();
     printf("client start pid/%d \r\n", pid);
 
-    //2秒超时连接服务器
-    if ((fd = ws_connectToServer(SERVER_IP, SERVER_PORT, "/null", 2000)) <= 0)
+    //3秒超时连接服务器
+    //同时大量接入时,服务器不能及时响应,可以加大超时时间
+    if ((fd = ws_connectToServer(SERVER_IP, SERVER_PORT, "/null", 3000)) <= 0)
     {
         printf("client link to server failed ! %d\r\n", fd);
         return -1;

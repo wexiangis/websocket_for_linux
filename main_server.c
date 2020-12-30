@@ -24,6 +24,7 @@
 #define RECV_PKG_MAX (SEND_PKG_MAX + 16)
 
 //限制最大可接入客户端数量
+//普通计算机接入破千之后CPU会逐渐拉满,无法再接入/发起更多客户端(性能因素)
 #define CLIENT_MAX 1000
 
 //bind超时ms(通常为服务器端口被占用,或者有客户端还连着上次的服务器)
@@ -370,8 +371,12 @@ void onMessage(void *argv, char *msg, int msgLen, WsData_Type type)
     //正常 websocket 数据包
     if (msgLen > 0)
     {
-        printf("onMessage: fd/%03d/%03d recv/%d/%d bytes %s\r\n",
-               wsc->fd, *wsc->fdTotal, msgLen, wsc->recvBytes, msgLen < 128 ? msg : " ");
+        //同时接入客户端数量过大时,不再打印该项,避免影响性能
+        if (*wsc->fdTotal < 500)
+        {
+            printf("onMessage: fd/%03d/%03d recv/%d/%d bytes %s\r\n",
+                wsc->fd, *wsc->fdTotal, msgLen, wsc->recvBytes, msgLen < 128 ? msg : " ");
+        }
         //在这里根据客户端的请求内容, 提供相应的回复
         if (strstr(msg, "Say hi~") != NULL)
             ;
