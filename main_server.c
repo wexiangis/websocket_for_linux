@@ -64,14 +64,15 @@ typedef enum
     WET_PKG_DIS, //收到断开协议包
 } Ws_ExitType;
 
-//客户端事件回调函数原型
-typedef void (*OnLogin)(void *obj);
-typedef void (*OnMessage)(void *obj, char *msg, int msgLen, WsData_Type type);
-typedef void (*OnExit)(void *obj, Ws_ExitType exitType);
-
+//先声明结构体,后面可以互相嵌套使用
 typedef struct WsClient Ws_Client;
 typedef struct WsThread Ws_Thread;
 typedef struct WsServer Ws_Server;
+
+//客户端事件回调函数原型
+typedef void (*OnLogin)(Ws_Client *wsc);
+typedef void (*OnMessage)(Ws_Client *wsc, char *msg, int msgLen, WsData_Type type);
+typedef void (*OnExit)(Ws_Client *wsc, Ws_ExitType exitType);
 
 //服务器副线程,负责检测 数据接收 和 客户端断开
 void server_thread2(void *argv);
@@ -179,7 +180,7 @@ int client_recv(Ws_Client *wsc)
                 wsc->wss->onLogin(wsc);
             return 0;
         }
-        //登录失败失败,连接断开
+        //websocket握手失败,标记断开类型
         else
         {
             wsc->exitType = WET_LOGIN;
@@ -187,22 +188,17 @@ int client_recv(Ws_Client *wsc)
         }
     }
     //接收数据量统计
-    if (wsc->isLogin && ret != 0)
+    if (ret != 0)
         wsc->recvBytes += ret > 0 ? ret : (-ret);
-    //收到特殊包(由于这些比较底层,所以没有放到onMessage事件)
+    //消息回调
+    if (wsc->wss->onMessage)
+        wsc->wss->onMessage(wsc, buff, ret, retPkgType);
+    //断连协议,标记断开类型
     if (retPkgType == WDT_DISCONN)
     {
         wsc->exitType = WET_PKG_DIS;
-        printf("specialPkg: fd/%03d order/%03d total/%03d recv WDT_DISCONN \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
         return -1;
     }
-    else if (retPkgType == WDT_PING)
-        printf("specialPkg: fd/%03d order/%03d total/%03d recv WDT_PING \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
-    else if (retPkgType == WDT_PONG)
-        printf("specialPkg: fd/%03d order/%03d total/%03d recv WDT_PONG \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
-    //回调
-    else if (ret != 0 && wsc->wss->onMessage)
-        wsc->wss->onMessage(wsc, buff, ret, retPkgType);
     //正常返回
     return ret == 0 ? 0 : 1;
 }
@@ -347,6 +343,7 @@ void client_detect(Ws_Thread *wst, bool delAll)
 }
 
 //服务器副线程,负责检测 数据接收 和 客户端断开
+//只要还有一个客户端在维护就不会退出线程
 void server_thread2(void *argv)
 {
     Ws_Thread *wst = (Ws_Thread *)argv;
@@ -443,7 +440,7 @@ void server_thread(void *argv)
     //向epoll注册server_sockfd监听事件
     _epoll_ctrl(wss->fd_epoll, wss->fd, EPOLLIN | EPOLLET, EPOLL_CTL_ADD, NULL);
 
-    printf("server start \r\n");
+    printf("server ws://127.0.0.1:%d%s \r\n", wss->port, wss->path);
     while (!wss->isExit)
     {
         //等待事件发生,-1阻塞,0/非阻塞,其它数值为超时ms
@@ -484,10 +481,9 @@ server_exit:
  *      msgLen: >0时为websocket数据包,<0时为非包数据,没有=0的情况
  *      type： websocket包类型
  */
-void onMessage(void *argv, char *msg, int msgLen, WsData_Type type)
+void onMessage(Ws_Client *wsc, char *msg, int msgLen, WsData_Type type)
 {
     int ret = 0;
-    Ws_Client *wsc = (Ws_Client *)argv;
     //正常 websocket 数据包
     if (msgLen > 0)
     {
@@ -507,27 +503,35 @@ void onMessage(void *argv, char *msg, int msgLen, WsData_Type type)
             wsc->exitType = WET_SEND;
     }
     //非 websocket 数据包
-    else
+    else if (msgLen < 0)
     {
         msgLen = -msgLen;
         printf("onMessage: fd/%03d order/%03d total/%03d %d/%dbytes bad pkg %s\r\n",
                wsc->fd, wsc->order, wsc->wss->clientCount, msgLen, wsc->recvBytes, msgLen < 128 ? msg : " ");
     }
+    //特殊包(不需作任何处理,知道就行)
+    else
+    {
+        if (type == WDT_PING)
+            printf("onMessage: fd/%03d order/%03d total/%03d pkg WDT_PING \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+        else if (type == WDT_PONG)
+            printf("onMessage: fd/%03d order/%03d total/%03d pkg WDT_PONG \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+        else if (type == WDT_DISCONN)
+            printf("onMessage: fd/%03d order/%03d total/%03d pkg WDT_DISCONN \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+    }
 }
 
 //客户端接入时(已连上),你要做什么?
-void onLogin(void *argv)
+void onLogin(Ws_Client *wsc)
 {
-    Ws_Client *wsc = (Ws_Client *)argv;
     printf("onLogin: fd/%03d order/%03d total/%03d\r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
     //打招呼
     ws_send(wsc->fd, "Say hi~ I am server", 19, false, WDT_TXTDATA);
 }
 
 //客户端断开时(已断开),你要做什么?
-void onExit(void *argv, Ws_ExitType exitType)
+void onExit(Ws_Client *wsc, Ws_ExitType exitType)
 {
-    Ws_Client *wsc = (Ws_Client *)argv;
     //断开原因
     if (exitType == WET_EPOLL)
         printf("onExit: fd/%03d order/%03d total/%03d disconnect by epoll\r\n", wsc->fd, wsc->order, wsc->wss->clientCount);

@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 
     //用本进程pid作为唯一标识
     pid = getpid();
-    printf("client start pid/%d %s:%d%s \r\n", pid, ip, port, path);
+    printf("client ws://%s:%d%s pid/%d\r\n", ip, port, path, pid);
 
     //3秒超时连接服务器
     //同时大量接入时,服务器不能及时响应,可以加大超时时间
@@ -90,34 +90,26 @@ int main(int argc, char **argv)
         //非包数据
         else if (ret < 0)
             printf("client(%d): recv len/%d bad pkg %s\r\n", pid, -ret, recv_buff);
-        else
+        //收到特殊包
+        else if (retPkgType == WDT_DISCONN)
         {
-            //收到特殊包
-            if (retPkgType == WDT_DISCONN)
-            {
-                printf("client(%d): recv WDT_DISCONN \r\n", pid);
-                break;
-            }
-            else if (retPkgType == WDT_PING)
-                printf("client(%d): recv WDT_PING \r\n", pid);
-            else if (retPkgType == WDT_PONG)
-                printf("client(%d): recv WDT_PONG \r\n", pid);
-        
-            //没有输据接收时,检查错误,是否连接已断开
-            else if (errno != EAGAIN && errno != EINTR)
-            {
-                printf("client(%d): check error %d, disconnect now ...\r\n", pid, errno);
-                break;
-            }
+            printf("client(%d): recv WDT_DISCONN \r\n", pid);
+            break;
         }
+        else if (retPkgType == WDT_PING)
+            printf("client(%d): recv WDT_PING \r\n", pid);
+        else if (retPkgType == WDT_PONG)
+            printf("client(%d): recv WDT_PONG \r\n", pid);
 
-        //一个合格的客户端,应该定时给服务器发心跳
+        //一个合格的客户端,应该定时给服务器发心跳,以检测连接状态
         heart += 10;
         if (heart > 3000)
         {
             heart = 0;
-#if 1
+
             //发送心跳
+#if 1
+            //用普通数据
             snprintf(send_buff, sizeof(send_buff), "Heart from client(%d) %s", pid, ws_time());
             // ret = ws_send(fd, send_buff, sizeof(send_buff), true, WDT_TXTDATA); //大数据量压力测试
             ret = ws_send(fd, send_buff, strlen(send_buff), true, WDT_TXTDATA);
