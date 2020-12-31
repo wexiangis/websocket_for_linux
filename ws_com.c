@@ -1000,7 +1000,7 @@ int32_t ws_dePackage(
  *      port: 服务器端口
  *      path: 接口地址
  *      timeoutMs: connect阶段超时设置,接收阶段为timeoutMs*2,写0使用默认值1000
- * 返回: >0 返回连接控制符 <= 0 连接失败或超时,所花费的时间ms的负值
+ * 返回: >0 返回连接描述符 <= 0 连接失败或超时,所花费的时间ms的负值
  * 说明: 无
  ******************************************************************************/
 int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
@@ -1142,7 +1142,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
  * 名称: ws_responseClient
  * 功能: 服务器回复客户端的连接请求, 以建立websocket连接
  * 参数:
- *      fd: 连接控制符
+ *      fd: 连接描述符
  *      data: 接收到来自客户端的数据(内含http连接请求)
  *      dataLen: 
  *      path: path匹配检查,不用可以置NULL
@@ -1176,7 +1176,7 @@ int ws_responseClient(int fd, char *data, int dataLen, char *path)
  * 名称: ws_send
  * 功能: websocket数据基本打包和发送
  * 参数:
- *      fd: 连接控制符
+ *      fd: 连接描述符
  *      *data: 数据
  *      dataLen: 长度
  *      mask: 数据是否使用掩码, 客户端到服务器必须使用掩码模式
@@ -1221,7 +1221,7 @@ int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
  * 名称: ws_recv
  * 功能: websocket数据接收和基本解包
  * 参数: 
- *      fd: 连接控制符
+ *      fd: 连接描述符
  *      data: 数据接收地址
  *      dataMaxLen: 接收区可用最大长度,至少16字节
  * 返回:

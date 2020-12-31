@@ -19,7 +19,10 @@
 
 #if 1 // 发收包测试
 
-int main(void)
+/*
+ *  usage: ./client ip port path
+ */
+int main(int argc, char **argv)
 {
     int fd, pid;
     int ret;
@@ -29,15 +32,32 @@ int main(void)
     char recv_buff[RECV_PKG_MAX];
     char send_buff[SEND_PKG_MAX];
 
+    int port = SERVER_PORT;
+    char ip[32] = SERVER_IP;
+    char path[64] = SERVER_PATH;
+
+    //传参接收
+    if (argc > 1) {
+        memset(ip, 0, sizeof(ip));
+        strcpy(ip, argv[1]);
+    }
+    if (argc > 2) {
+        sscanf(argv[2], "%d", &port);
+    }
+    if (argc > 3) {
+        memset(path, 0, sizeof(path));
+        strcpy(path, argv[3]);
+    }
+
     //用本进程pid作为唯一标识
     pid = getpid();
-    printf("client start pid/%d \r\n", pid);
+    printf("client start pid/%d %s:%d%s \r\n", pid, ip, port, path);
 
     //3秒超时连接服务器
     //同时大量接入时,服务器不能及时响应,可以加大超时时间
-    if ((fd = ws_connectToServer(SERVER_IP, SERVER_PORT, "/null", 3000)) <= 0)
+    if ((fd = ws_connectToServer(ip, port, path, 3000)) <= 0)
     {
-        printf("client link to server failed ! %d\r\n", fd);
+        printf("connect failed !!\r\n");
         return -1;
     }
 
@@ -132,7 +152,10 @@ int main(void)
 //指定要写入的文件
 #define FILE_W "./out.bin"
 
-int main(void)
+/*
+ *  usage: ./client ip port path
+ */
+int main(int argc, char **argv)
 {
     int ret, recvTotal = 0, sendTotal = 0, timeout = 0;
     WsData_Type type;
@@ -141,10 +164,27 @@ int main(void)
     int fd, fr, fw;
     char frOver = 0, fwOver = 0;
 
-    fd = ws_connectToServer(SERVER_IP, SERVER_PORT, "/null", 2000);
+    int port = SERVER_PORT;
+    char ip[32] = SERVER_IP;
+    char path[64] = SERVER_PATH;
+
+    //传参接收
+    if (argc > 1) {
+        memset(ip, 0, sizeof(ip));
+        strcpy(ip, argv[1]);
+    }
+    if (argc > 2) {
+        sscanf(argv[2], "%d", &port);
+    }
+    if (argc > 3) {
+        memset(path, 0, sizeof(path));
+        strcpy(path, argv[3]);
+    }
+
+    fd = ws_connectToServer(ip, port, path, 2000);
     if (fd < 1)
     {
-        printf("connect failed \r\n");
+        printf("connect failed !!\r\n");
         return 1;
     }
 
