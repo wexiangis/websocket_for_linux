@@ -1048,12 +1048,6 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
         return -1;
     }
 
-    //测试 -----  创建握手key 和 匹配返回key
-    //ws_buildShakeKey(shakeKey);
-    //printf("key1:%s\r\n", shakeKey);
-    //ws_buildRespondShakeKey(shakeKey, strlen(shakeKey), shakeKey);
-    //printf("key2:%s\r\n", shakeKey);
-
     //非阻塞
     ret = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, ret | O_NONBLOCK);
@@ -1083,8 +1077,6 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
 #endif
     while (1)
     {
-        ws_delayms(1);
-
         memset(retBuff, 0, sizeof(retBuff));
         ret = recv(fd, retBuff, sizeof(retBuff), MSG_NOSIGNAL);
         if (ret > 0)
@@ -1094,7 +1086,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
             printf("ws_connectToServer: %d / %dms\r\n%s\r\n", ret, timeoutCount, retBuff);
 #endif
             //返回的是http回应信息
-            if (strncmp((const char *)retBuff, "HTTP", strlen("HTTP")) == 0)
+            if (strncmp((const char *)retBuff, "HTTP", 4) == 0)
             {
                 //定位到握手字符串
                 if ((p = strstr((char *)retBuff, "Sec-WebSocket-Accept: ")) != NULL)
@@ -1129,6 +1121,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
                 //#endif
             }
         }
+        ws_delayms(1);
         //超时检查
         if (++timeoutCount > timeoutMs * 2)
             break;
