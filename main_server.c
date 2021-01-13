@@ -411,6 +411,9 @@ void server_thread(void *argv)
         return;
     }
 
+    //地址可重用设置(有效避免bind超时)
+    setsockopt(wss->fd, SOL_SOCKET, SO_REUSEADDR, &ret, sizeof(ret));
+
     //设置为非阻塞接收
     ret = fcntl(wss->fd, F_GETFL, 0);
     fcntl(wss->fd, F_SETFL, ret | O_NONBLOCK);
