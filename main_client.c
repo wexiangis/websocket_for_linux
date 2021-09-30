@@ -183,14 +183,15 @@ int main(int argc, char **argv)
     fr = open(FILE_R, O_RDONLY);
     if (fr < 1)
     {
-        printf("open FILE_R %s failed \r\n", FILE_R);
+        printf("open %s failed\r\n", FILE_R);
+        printf("you can create file by shell 'dd if=/dev/zero of=./in.bin bs=1M count=10'\r\n");
         goto exit_ws;
     }
 
     fw = open(FILE_W, O_RDWR | O_CREAT | O_TRUNC, 0666);
     if (fw < 1)
     {
-        printf("open FILE_W %s failed \r\n", FILE_W);
+        printf("open %s failed \r\n", FILE_W);
         goto exit_fr;
     }
 

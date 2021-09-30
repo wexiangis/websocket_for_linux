@@ -15,13 +15,12 @@
 
 #include "ws_com.h"
 
-// ================== 服务器内部功能实现 ===================
+// ================== 服务器内部配置 ===================
 
-//发包数据量 10K
-#define SEND_PKG_MAX (10240)
-
-//收包缓冲区大小 10K+
-#define RECV_PKG_MAX (SEND_PKG_MAX + 16)
+//收包缓冲区大小,需确保能够一次接收完一包数据
+//每接入一个客户端将开辟一块空间
+//按需要调整
+#define RECV_PKG_MAX (1024 * 10 + 16)
 
 //最大副线程数量(不包括负责accept的主线程)
 //计算机线程数量有限,建议限制在300以内(或上网搜索"linux最大线程数量"进一步了解)
@@ -52,6 +51,8 @@
 
 //接入客户端数量超出这个数时不在 onMessage 打印,避免卡顿
 #define CLIENT_OF_PRINTF 500
+
+// ================== 服务器内部功能实现 ===================
 
 //断连原因
 typedef enum
@@ -170,7 +171,7 @@ int client_recv(Ws_Client *wsc)
         strstr(buff, "Sec-WebSocket-Key"))
     {
         //构建回复
-        if (ws_responseClient(wsc->fd, buff, ret, wsc->wss->path) > 0)
+        if (ws_responseClient(wsc->fd, buff, -ret, wsc->wss->path) > 0)
         {
             //这个延时很有必要,否则下面onLogin里面发东西客户端可能收不到
             ws_delayms(5);
@@ -479,7 +480,7 @@ server_exit:
 /*
  *  接收数据回调
  *  参数:
- *      argv: 客户端信息结构体指针
+ *      wsc: 客户端信息结构体指针
  *      msg: 接收数据内容
  *      msgLen: >0时为websocket数据包,<0时为非包数据,没有=0的情况
  *      type： websocket包类型
@@ -556,7 +557,7 @@ void onExit(Ws_Client *wsc, Ws_ExitType exitType)
 int main(int argc, char **argv)
 {
     int i;
-    char buff[SEND_PKG_MAX];
+    char buff[1024];
 
     //服务器必须参数
     Ws_Server wss = {

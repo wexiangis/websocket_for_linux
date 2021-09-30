@@ -23,21 +23,35 @@
 
 #include "ws_com.h"
 
-//生成握手key的长度
-#define WEBSOCKET_SHAKE_KEY_LEN 16
+//不带参数 和 带参数
+#define WS_LOG(fmt) fprintf(stdout, "[WS_LOG] %s(%d): " fmt, __func__, __LINE__)
+#define WS_LOG2(fmt, argv...) fprintf(stdout, "[WS_LOG] %s(%d): " fmt, __func__, __LINE__, ##argv)
+#define WS_ERR(fmt) fprintf(stderr, "[WS_ERR] %s(%d): " fmt, __func__, __LINE__)
+#define WS_ERR2(fmt, argv...) fprintf(stderr, "[WS_ERR] %s(%d): " fmt, __func__, __LINE__, ##argv)
+void WS_HEX(FILE *f, void *dat, uint32_t len)
+{
+    uint8_t *p = (uint8_t*)dat;
+    uint32_t i;
+    for (i = 0; i < len; i++)
+        fprintf(f, "%02X ", p[i]);
+    fprintf(f, "\r\n");
+}
 
+//稍微精准的延时
 #include <sys/time.h>
-void ws_delayus(unsigned int us)
+void ws_delayus(uint32_t us)
 {
     struct timeval tim;
     tim.tv_sec = us / 1000000;
     tim.tv_usec = us % 1000000;
     select(0, NULL, NULL, NULL, &tim);
 }
-void ws_delayms(unsigned int ms)
+void ws_delayms(uint32_t ms)
 {
     ws_delayus(ms * 1000);
 }
+
+//返回时间戳字符串,格式 HH:MM:SS
 char *ws_time(void)
 {
     static char timeStr[9];
@@ -72,6 +86,7 @@ void *ws_getHost_fun(void *arge)
     struct hostent host_body, *host = NULL;
     struct in_addr **addr_list;
     GetHostName_Struct *gs = (GetHostName_Struct *)arge;
+
     /*  此类方法不可重入!  即使关闭线程
     if((host = gethostbyname(gs->ip)) == NULL)
     //if((host = gethostbyname2(gs->ip, AF_INET)) == NULL)
@@ -84,14 +99,19 @@ void *ws_getHost_fun(void *arge)
         gs->actionEnd = true;
         return NULL;
     }
+
     if (host == NULL)
     {
         gs->actionEnd = true;
         return NULL;
     }
+
     addr_list = (struct in_addr **)host->h_addr_list;
-    //printf("ip name: %s\r\nip list: ", host->h_name);
-    //for(i = 0; addr_list[i] != NULL; i++) printf("%s, ", inet_ntoa(*addr_list[i])); printf("\r\n");
+    // printf("ip name: %s\r\nip list: ", host->h_name);
+    // for(i = 0; addr_list[i] != NULL; i++)
+    //     printf("%s, ", inet_ntoa(*addr_list[i]));
+    // printf("\r\n");
+
     if (addr_list[0] == NULL)
     {
         gs->actionEnd = true;
@@ -423,94 +443,27 @@ void SHA1Input(SHA1Context *context, const char *message_array, uint32_t length)
     }
 }
 
-/* int32_t sha1_hash(const char *source, char *lrvar){//Main 
-    SHA1Context sha; 
-    char buf[128]; 
- 
-    SHA1Reset(&sha); 
-    SHA1Input(&sha, source, strlen(source)); 
- 
-    if (!SHA1Result(&sha)){ 
-        printf("SHA1 ERROR: Could not compute message digest"); 
-        return -1; 
-    } else { 
-        memset(buf,0,sizeof(buf)); 
-        sprintf(buf, "%08X%08X%08X%08X%08X", sha.Message_Digest[0],sha.Message_Digest[1], 
-        sha.Message_Digest[2],sha.Message_Digest[3],sha.Message_Digest[4]); 
-        //lr_save_string(buf, lrvar); 
-         
-        return strlen(buf); 
-    } 
-} */
-
 char *sha1_hash(const char *source)
 {
     SHA1Context sha;
-    char *buf; //[128];
+    char *buff = NULL;
 
     SHA1Reset(&sha);
     SHA1Input(&sha, source, strlen(source));
 
     if (!SHA1Result(&sha))
-    {
-        printf("SHA1 ERROR: Could not compute message digest");
-        return NULL;
-    }
+        WS_ERR("SHA1 ERROR: Could not compute message digest \r\n");
     else
     {
-        buf = (char *)malloc(128);
-        memset(buf, 0, 128);
-        sprintf(buf, "%08X%08X%08X%08X%08X", sha.Message_Digest[0], sha.Message_Digest[1],
-                sha.Message_Digest[2], sha.Message_Digest[3], sha.Message_Digest[4]);
-        //lr_save_string(buf, lrvar);
-        //return strlen(buf);
-        return buf;
+        buff = (char *)calloc(128, sizeof(char));
+        sprintf(buff, "%08X%08X%08X%08X%08X",
+                sha.Message_Digest[0],
+                sha.Message_Digest[1],
+                sha.Message_Digest[2],
+                sha.Message_Digest[3],
+                sha.Message_Digest[4]);
     }
-}
-
-int32_t tolower(int32_t c)
-{
-    if (c >= 'A' && c <= 'Z')
-    {
-        return c + 'a' - 'A';
-    }
-    else
-    {
-        return c;
-    }
-}
-
-int32_t htoi(const char s[], int32_t start, int32_t len)
-{
-    int32_t i, j;
-    int32_t n = 0;
-    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) //判断是否有前导0x或者0X
-    {
-        i = 2;
-    }
-    else
-    {
-        i = 0;
-    }
-    i += start;
-    j = 0;
-    for (; (s[i] >= '0' && s[i] <= '9') || (s[i] >= 'a' && s[i] <= 'f') || (s[i] >= 'A' && s[i] <= 'F'); ++i)
-    {
-        if (j >= len)
-        {
-            break;
-        }
-        if (tolower(s[i]) > '9')
-        {
-            n = 16 * n + (10 + tolower(s[i]) - 'a');
-        }
-        else
-        {
-            n = 16 * n + (tolower(s[i]) - '0');
-        }
-        j++;
-    }
-    return n;
+    return buff;
 }
 
 //==================== websocket部分 ====================
@@ -532,7 +485,7 @@ void ws_getRandomString(char *buff, uint32_t len)
     for (i = 0; i < len; i++)
     {
         temp = (uint8_t)(rand() % 256);
-        if (temp == 0) //随机数不要0, 0 会干扰对字符串长度的判断
+        if (temp == 0) //随机数不要0
             temp = 128;
         buff[i] = temp;
     }
@@ -547,9 +500,9 @@ void ws_getRandomString(char *buff, uint32_t len)
  ******************************************************************************/
 int32_t ws_buildShakeKey(char *key)
 {
-    char tempKey[WEBSOCKET_SHAKE_KEY_LEN] = {0};
-    ws_getRandomString(tempKey, WEBSOCKET_SHAKE_KEY_LEN);
-    return ws_base64_encode((const uint8_t *)tempKey, (char *)key, WEBSOCKET_SHAKE_KEY_LEN);
+    char tempKey[16] = {0};
+    ws_getRandomString(tempKey, 16);
+    return ws_base64_encode((const uint8_t *)tempKey, (char *)key, 16);
 }
 
 /*******************************************************************************
@@ -566,63 +519,75 @@ int32_t ws_buildRespondShakeKey(char *acceptKey, uint32_t acceptKeyLen, char *re
 {
     char *clientKey;
     char *sha1DataTemp;
-    char *sha1Data;
-    int32_t i, n;
-    const char GUID[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-    uint32_t GUIDLEN;
+    uint8_t *sha1Data;
+    int32_t i, j, sha1DataTempLen, ret;
+    const char guid[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    uint32_t guidLen;
 
     if (acceptKey == NULL)
         return 0;
-    GUIDLEN = sizeof(GUID);
-    clientKey = (char *)calloc(acceptKeyLen + GUIDLEN + 10, sizeof(char));
-    memset(clientKey, 0, (acceptKeyLen + GUIDLEN + 10));
 
+    guidLen = sizeof(guid);
+    clientKey = (char *)calloc(acceptKeyLen + guidLen + 10, sizeof(char));
     memcpy(clientKey, acceptKey, acceptKeyLen);
-    memcpy(&clientKey[acceptKeyLen], GUID, GUIDLEN);
-    clientKey[acceptKeyLen + GUIDLEN] = '\0';
+    memcpy(&clientKey[acceptKeyLen], guid, guidLen);
 
     sha1DataTemp = sha1_hash(clientKey);
-    n = strlen((const char *)sha1DataTemp);
-    sha1Data = (char *)calloc(n / 2 + 1, sizeof(char));
-    memset(sha1Data, 0, n / 2 + 1);
+    sha1DataTempLen = strlen((const char *)sha1DataTemp);
+    sha1Data = (uint8_t *)calloc(sha1DataTempLen / 2 + 1, sizeof(char));
 
-    for (i = 0; i < n; i += 2)
-        sha1Data[i / 2] = htoi(sha1DataTemp, i, 2);
-    n = ws_base64_encode((const uint8_t *)sha1Data, (char *)respondKey, (n / 2));
+    //把hex字符串如"12ABCDEF",转为数值数组如{0x12,0xAB,0xCD,0xEF}
+    for (i = j = 0; i < sha1DataTempLen;)
+    {
+        if (sha1DataTemp[i] > '9')
+            sha1Data[j] = (10 + sha1DataTemp[i] - 'A') << 4;
+        else
+            sha1Data[j] = (sha1DataTemp[i] - '0') << 4;
+
+        i += 1;
+
+        if (sha1DataTemp[i] > '9')
+            sha1Data[j] |= (10 + sha1DataTemp[i] - 'A');
+        else
+            sha1Data[j] |= (sha1DataTemp[i] - '0');
+
+        i += 1;
+        j += 1;
+    }
+
+    ret = ws_base64_encode((const uint8_t *)sha1Data, (char *)respondKey, j);
 
     free(sha1DataTemp);
     free(sha1Data);
     free(clientKey);
-    return n;
+    return ret;
 }
 
 /*******************************************************************************
  * 名称: ws_matchShakeKey
  * 功能: client端收到来自服务器回应的key后进行匹配,以验证握手成功
  * 参数:
- *      myKey: client端请求握手时发给服务器的key
- *      myKeyLen: 长度
+ *      clientKey: client端请求握手时发给服务器的key
+ *      clientKeyLen: 长度
  *      acceptKey: 服务器回应的key
  *      acceptKeyLen: 长度
  * 返回: 0 成功  -1 失败
  * 说明: 无
  ******************************************************************************/
-int32_t ws_matchShakeKey(char *myKey, uint32_t myKeyLen, char *acceptKey, uint32_t acceptKeyLen)
+int32_t ws_matchShakeKey(char *clientKey, uint32_t clientKeyLen, char *acceptKey, uint32_t acceptKeyLen)
 {
     int32_t retLen;
     char tempKey[256] = {0};
 
-    retLen = ws_buildRespondShakeKey(myKey, myKeyLen, tempKey);
-    //printf("ws_matchShakeKey :\r\n%d: %s\r\n%d: %s\r\n", acceptKeyLen, acceptKey, retLen, tempKey);
-
+    retLen = ws_buildRespondShakeKey(clientKey, clientKeyLen, tempKey);
     if (retLen != acceptKeyLen)
     {
-        printf("ws_matchShakeKey: len err\r\n%s\r\n%s\r\n%s\r\n", myKey, tempKey, acceptKey);
+        WS_ERR2("len err, clientKey[%d] != acceptKey[%d]\r\n", retLen, acceptKeyLen);
         return -1;
     }
     else if (strcmp((const char *)tempKey, (const char *)acceptKey) != 0)
     {
-        printf("ws_matchShakeKey: str err\r\n%s\r\n%s\r\n", tempKey, acceptKey);
+        WS_ERR2("strcmp err, clientKey[%s -> %s] != acceptKey[%s]\r\n", clientKey, tempKey, acceptKey);
         return -1;
     }
     return 0;
@@ -998,7 +963,7 @@ int32_t ws_dePackage(
  * 参数:
  *      ip: 服务器ip
  *      port: 服务器端口
- *      path: 接口地址
+ *      path: 接口地址,格式如"/tmp/xxx"
  *      timeoutMs: connect阶段超时设置,接收阶段为timeoutMs*2,写0使用默认值1000
  * 返回: >0 返回连接描述符 <= 0 连接失败或超时,所花费的时间ms的负值
  * 说明: 无
@@ -1033,7 +998,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
         if ((report_addr.sin_addr.s_addr = inet_addr(tempIp)) == INADDR_NONE)
             return -ret;
 #ifdef WS_DEBUG
-        printf("ws_connectToServer: Host(%s) to Ip(%s)\r\n", ip, tempIp);
+        WS_LOG2("Host(%s) to Ip(%s)\r\n", ip, tempIp);
 #endif
     }
 
@@ -1044,7 +1009,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
     //create unix socket
     if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        printf("ws_connectToServer: cannot create socket\r\n");
+        WS_ERR("socket error\r\n");
         return -1;
     }
 
@@ -1058,7 +1023,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
     {
         if (++timeoutCount > timeoutMs)
         {
-            printf("ws_connectToServer: cannot connect to %s:%d timeout %d\r\n", ip, port, timeoutCount);
+            WS_ERR2("connect to %s:%d timeout(%dms)\r\n", ip, port, timeoutCount);
             close(fd);
             return -timeoutCount;
         }
@@ -1073,7 +1038,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
     send(fd, httpHead, strlen((const char *)httpHead), MSG_NOSIGNAL);
 
 #ifdef WS_DEBUG
-    printf("ws_connectToServer: %dms\r\n%s\r\n", timeoutCount, httpHead);
+    WS_LOG2("connect: %dms\r\n%s\r\n", timeoutCount, httpHead);
 #endif
     while (1)
     {
@@ -1083,7 +1048,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
         {
 #ifdef WS_DEBUG
             //显示http返回
-            printf("ws_connectToServer: %d / %dms\r\n%s\r\n", ret, timeoutCount, retBuff);
+            WS_LOG2("recv: len %d / %dms\r\n%s\r\n", ret, timeoutCount, retBuff);
 #endif
             //返回的是http回应信息
             if (strncmp((const char *)retBuff, "HTTP", 4) == 0)
@@ -1108,16 +1073,8 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
             else
             {
                 //#ifdef WS_DEBUG
-                if (retBuff[0] >= ' ' && retBuff[0] <= '~')
-                    printf("ws_connectToServer: %d\r\n%s\r\n", ret, retBuff);
-                else
-                {
-                    p = retBuff;
-                    printf("ws_connectToServer: %d\r\n", ret);
-                    while (*p)
-                        printf("%.2X ", *p++);
-                    printf("\r\n");
-                }
+                WS_ERR2("recv: len %d / unknown context\r\n%s\r\n", ret, retBuff);
+                WS_HEX(stderr, retBuff, ret);
                 //#endif
             }
         }
@@ -1148,18 +1105,30 @@ int ws_responseClient(int fd, char *data, int dataLen, char *path)
     int32_t ret;
     char recvShakeKey[512] = {0};
     char respondPackage[1024] = {0};
+#ifdef WS_DEBUG
+    WS_LOG2("recv: len %d \r\n%s\r\n", dataLen, data);
+#endif
     //path检查
     if (path && !strstr((char *)data, path))
+    {
+        WS_ERR("path not matched\r\n");
         return -1;
+    }
     //获取握手key
     if (!(keyOffset = strstr((char *)data, "Sec-WebSocket-Key: ")))
+    {
+        WS_ERR("Sec-WebSocket-Key not found\r\n");
         return -1;
+    }
     //获取握手key
     keyOffset += strlen("Sec-WebSocket-Key: ");
     sscanf((const char *)keyOffset, "%s", recvShakeKey);
     ret = strlen((const char *)recvShakeKey);
     if (ret < 1)
+    {
+        WS_ERR("Sec-WebSocket-Key not matched\r\n");
         return -1;
+    }
     //创建回复key
     ws_buildHttpRespond(recvShakeKey, (uint32_t)ret, respondPackage);
     return send(fd, respondPackage, strlen((const char *)respondPackage), MSG_NOSIGNAL);
@@ -1181,9 +1150,6 @@ int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
 {
     uint8_t *wsPkg = NULL;
     int32_t retLen, ret;
-#ifdef WS_DEBUG
-    uint32_t i;
-#endif
     //参数检查
     if (dataLen < 0)
         return 0;
@@ -1200,10 +1166,8 @@ int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
     }
 #ifdef WS_DEBUG
     //显示数据
-    printf("ws_send: len/%d\r\n", retLen);
-    for (i = 0; i < retLen; i++)
-        printf("%.2X ", wsPkg[i]);
-    printf("\r\n");
+    WS_LOG2("ws_send: len/%d\r\n", retLen);
+    WS_HEX(stdout, wsPkg, retLen);
 #endif
     ret = send(fd, wsPkg, retLen, MSG_NOSIGNAL);
     free(wsPkg);
@@ -1233,9 +1197,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
     uint32_t timeout = 0;
     WsData_Type retPkgType = WDT_NULL;
     char tmp[16];
-#ifdef WS_DEBUG
-    uint32_t i;
-#endif
+
     //丢弃数据
     if (!data || dataMaxLen < 1)
     {
@@ -1246,7 +1208,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
     else
     {
         if (dataMaxLen < 16)
-            printf("ws_recv error !! dataMaxLen must be >= 16 \r\n");
+            WS_ERR("error, dataMaxLen must be >= 16 \r\n");
         else
             retRecv = recv(fd, data, 14, MSG_NOSIGNAL);
     }
@@ -1264,8 +1226,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
             if (retDePkg < 0)
             {
                 //1. 发出警告
-                printf("ws_recv warnning !! pkgLen(%d) > dataMaxLen(%d)\r\n",
-                       retRecv - retDePkg, dataMaxLen);
+                WS_ERR2("warnning, pkgLen(%d) > dataMaxLen(%d)\r\n", retRecv - retDePkg, dataMaxLen);
                 //2. 把这包数据丢弃,以免影响后续包
                 while (recv(fd, tmp, sizeof(tmp), MSG_NOSIGNAL) > 0)
                     ;
@@ -1273,11 +1234,9 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
             retFinal = -retRecv;
 #ifdef WS_DEBUG
             //显示数据
-            printf("ws_recv1: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
-                   retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
-            for (i = 0; i < retRecv; i++)
-                printf("%.2X ", (uint8_t)data[i]);
-            printf("\r\n");
+            WS_LOG2("ws_recv1: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
+                    retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
+            WS_HEX(stdout, data, retRecv);
 #endif
         }
         //正常收包
@@ -1308,22 +1267,18 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
                 }
 #ifdef WS_DEBUG
                 //显示数据
-                printf("ws_recv2: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
-                       retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
-                for (i = 0; i < retRecv; i++)
-                    printf("%.2X ", (uint8_t)data[i]);
-                printf("\r\n");
+                WS_LOG2("ws_recv2: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
+                        retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
+                WS_HEX(stdout, data, retRecv);
 #endif
                 //二次解包
                 retDePkg = ws_dePackage((uint8_t *)data, retRecv, &retDataLen, &retHeadLen, &retPkgType);
             }
 #ifdef WS_DEBUG
             //显示数据
-            printf("ws_recv3: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
-                   retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
-            for (i = 0; i < retRecv; i++)
-                printf("%.2X ", (uint8_t)data[i]);
-            printf("\r\n");
+            WS_LOG2("ws_recv3: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
+                    retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
+            WS_HEX(stdout, data, retRecv);
 #endif
             //一包数据终于完整的接收完了...
             if (retDePkg > 0)
@@ -1333,19 +1288,19 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
                 {
                     //自动 ping-pong
                     ws_send(fd, NULL, 0, false, WDT_PONG);
-                    // printf("ws_recv: WDT_PING\r\n");
+                    // WS_LOG("ws_recv: WDT_PING\r\n");
                     retFinal = 0;
                 }
                 //收到 PONG 包
                 else if (retPkgType == WDT_PONG)
                 {
-                    // printf("ws_recv: WDT_PONG\r\n");
+                    // WS_LOG("ws_recv: WDT_PONG\r\n");
                     retFinal = 0;
                 }
                 //收到 断连 包
                 else if (retPkgType == WDT_DISCONN)
                 {
-                    // printf("ws_recv: WDT_DISCONN\r\n");
+                    // WS_LOG("ws_recv: WDT_DISCONN\r\n");
                     retFinal = 0;
                 }
                 //其它正常数据包
