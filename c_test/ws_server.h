@@ -116,8 +116,7 @@ Ws_Server* ws_server_create(
 void ws_server_release(Ws_Server **wss);
 
 #ifdef __cplusplus
-extern "C"
-{
+}
 #endif
 
 #endif // _WS_SERVER_H_
