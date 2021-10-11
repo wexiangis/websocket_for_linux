@@ -1013,10 +1013,6 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
         return -1;
     }
 
-    //非阻塞
-    ret = fcntl(fd, F_GETFL, 0);
-    fcntl(fd, F_SETFL, ret | O_NONBLOCK);
-
     //connect
     timeoutCount = 0;
     while (connect(fd, (struct sockaddr *)&report_addr, sizeof(struct sockaddr)) != 0)
@@ -1029,6 +1025,10 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
         }
         ws_delayms(1);
     }
+
+    //非阻塞
+    ret = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, ret | O_NONBLOCK);
 
     //发送http协议头
     memset(shakeKey, 0, sizeof(shakeKey));
