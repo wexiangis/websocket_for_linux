@@ -669,7 +669,7 @@ int32_t ws_enPackage(
     uint8_t *package,
     uint32_t packageMaxLen,
     bool mask,
-    WsData_Type type)
+    Ws_DataType type)
 {
     uint32_t i, pkgLen = 0;
     //掩码
@@ -794,7 +794,7 @@ int32_t ws_dePackage(
     uint32_t len,
     uint32_t *retDataLen,
     uint32_t *retHeadLen,
-    WsData_Type *retPkgType)
+    Ws_DataType *retPkgType)
 {
     uint32_t cIn, cOut;
     //包类型
@@ -1146,7 +1146,7 @@ int ws_responseClient(int fd, char *data, int dataLen, char *path)
  * 返回: 调用send的返回
  * 说明: 无
  ******************************************************************************/
-int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
+int ws_send(int fd, char *data, int dataLen, bool mask, Ws_DataType type)
 {
     uint8_t *wsPkg = NULL;
     int32_t retLen, ret;
@@ -1187,7 +1187,7 @@ int ws_send(int fd, char *data, int dataLen, bool mask, WsData_Type type)
  *      <0 非标准数据包数据的长度
  * 说明: 无
  ******************************************************************************/
-int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
+int ws_recv(int fd, char *data, int dataMaxLen, Ws_DataType *dataType)
 {
     int32_t ret;
     int32_t retRecv = 0, retDePkg;
@@ -1195,7 +1195,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, WsData_Type *dataType)
     uint32_t retHeadLen = 0;
     int32_t retFinal = 0;
     uint32_t timeout = 0;
-    WsData_Type retPkgType = WDT_NULL;
+    Ws_DataType retPkgType = WDT_NULL;
     char tmp[16];
 
     //丢弃数据

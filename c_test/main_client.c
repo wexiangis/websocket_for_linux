@@ -27,7 +27,7 @@ int main(int argc, char **argv)
     int fd, pid;
     int ret;
     int heart = 0;
-    WsData_Type retPkgType;
+    Ws_DataType retPkgType;
 
     char recv_buff[RECV_PKG_MAX];
     char send_buff[SEND_PKG_MAX];
@@ -150,7 +150,7 @@ int main(int argc, char **argv)
 int main(int argc, char **argv)
 {
     int ret, recvTotal = 0, sendTotal = 0, timeout = 0;
-    WsData_Type type;
+    Ws_DataType type;
     char recv_buff[RECV_PKG_MAX];
     char send_buff[SEND_PKG_MAX];
     int fd, fr, fw;
