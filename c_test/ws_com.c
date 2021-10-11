@@ -28,7 +28,7 @@
 #define WS_LOG2(fmt, argv...) fprintf(stdout, "[WS_LOG] %s(%d): " fmt, __func__, __LINE__, ##argv)
 #define WS_ERR(fmt) fprintf(stderr, "[WS_ERR] %s(%d): " fmt, __func__, __LINE__)
 #define WS_ERR2(fmt, argv...) fprintf(stderr, "[WS_ERR] %s(%d): " fmt, __func__, __LINE__, ##argv)
-void WS_HEX(FILE *f, void *dat, uint32_t len)
+static void WS_HEX(FILE *f, void *dat, uint32_t len)
 {
     uint8_t *p = (uint8_t*)dat;
     uint32_t i;
@@ -78,7 +78,7 @@ typedef struct
     bool actionEnd;
 } GetHostName_Struct;
 
-void *ws_getHost_fun(void *arge)
+static void *ws_getHost_fun(void *arge)
 {
     int32_t ret;
     //int32_t i;
@@ -164,7 +164,7 @@ int ws_getIpByHostName(char *hostName, char *backIp)
 //==================== 加密方法BASE64 ====================
 
 //base64编/解码用的基础字符集
-const char ws_base64char[] =
+static const char ws_base64char[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /*******************************************************************************
@@ -277,7 +277,7 @@ typedef struct SHA1Context
 
 #define SHA1CircularShift(bits, word) ((((word) << (bits)) & 0xFFFFFFFF) | ((word) >> (32 - (bits))))
 
-void SHA1ProcessMessageBlock(SHA1Context *context)
+static void SHA1ProcessMessageBlock(SHA1Context *context)
 {
     const uint32_t K[] = {0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6};
     int32_t t;
@@ -350,7 +350,7 @@ void SHA1ProcessMessageBlock(SHA1Context *context)
     context->Message_Block_Index = 0;
 }
 
-void SHA1Reset(SHA1Context *context)
+static void SHA1Reset(SHA1Context *context)
 {
     context->Length_Low = 0;
     context->Length_High = 0;
@@ -366,7 +366,7 @@ void SHA1Reset(SHA1Context *context)
     context->Corrupted = 0;
 }
 
-void SHA1PadMessage(SHA1Context *context)
+static void SHA1PadMessage(SHA1Context *context)
 {
     if (context->Message_Block_Index > 55)
     {
@@ -395,7 +395,7 @@ void SHA1PadMessage(SHA1Context *context)
     SHA1ProcessMessageBlock(context);
 }
 
-int32_t SHA1Result(SHA1Context *context)
+static int32_t SHA1Result(SHA1Context *context)
 {
     if (context->Corrupted)
     {
@@ -409,7 +409,7 @@ int32_t SHA1Result(SHA1Context *context)
     return 1;
 }
 
-void SHA1Input(SHA1Context *context, const char *message_array, uint32_t length)
+static void SHA1Input(SHA1Context *context, const char *message_array, uint32_t length)
 {
     if (!length)
         return;
@@ -443,7 +443,7 @@ void SHA1Input(SHA1Context *context, const char *message_array, uint32_t length)
     }
 }
 
-char *sha1_hash(const char *source)
+static char *sha1_hash(const char *source)
 {
     SHA1Context sha;
     char *buff = NULL;
@@ -477,7 +477,7 @@ char *sha1_hash(const char *source)
  * 返回: 无
  * 说明: 无
  ******************************************************************************/
-void ws_getRandomString(char *buff, uint32_t len)
+static void ws_getRandomString(char *buff, uint32_t len)
 {
     uint32_t i;
     uint8_t temp;
@@ -498,7 +498,7 @@ void ws_getRandomString(char *buff, uint32_t len)
  * 返回: key的长度
  * 说明: 无
  ******************************************************************************/
-int32_t ws_buildShakeKey(char *key)
+static int32_t ws_buildShakeKey(char *key)
 {
     char tempKey[16] = {0};
     ws_getRandomString(tempKey, 16);
@@ -515,7 +515,7 @@ int32_t ws_buildShakeKey(char *key)
  * 返回: respondKey的长度(肯定比acceptKey要长)
  * 说明: 无
  ******************************************************************************/
-int32_t ws_buildRespondShakeKey(char *acceptKey, uint32_t acceptKeyLen, char *respondKey)
+static int32_t ws_buildRespondShakeKey(char *acceptKey, uint32_t acceptKeyLen, char *respondKey)
 {
     char *clientKey;
     char *sha1DataTemp;
@@ -574,7 +574,7 @@ int32_t ws_buildRespondShakeKey(char *acceptKey, uint32_t acceptKeyLen, char *re
  * 返回: 0 成功  -1 失败
  * 说明: 无
  ******************************************************************************/
-int32_t ws_matchShakeKey(char *clientKey, uint32_t clientKeyLen, char *acceptKey, uint32_t acceptKeyLen)
+static int32_t ws_matchShakeKey(char *clientKey, uint32_t clientKeyLen, char *acceptKey, uint32_t acceptKeyLen)
 {
     int32_t retLen;
     char tempKey[256] = {0};
@@ -605,7 +605,7 @@ int32_t ws_matchShakeKey(char *clientKey, uint32_t clientKeyLen, char *acceptKey
  * 返回: 无
  * 说明: 无
  ******************************************************************************/
-void ws_buildHttpHead(char *ip, int32_t port, char *path, char *shakeKey, char *package)
+static void ws_buildHttpHead(char *ip, int32_t port, char *path, char *shakeKey, char *package)
 {
     const char httpDemo[] =
         "GET %s HTTP/1.1\r\n"
@@ -627,7 +627,7 @@ void ws_buildHttpHead(char *ip, int32_t port, char *path, char *shakeKey, char *
  * 返回: 无
  * 说明: 无
  ******************************************************************************/
-void ws_buildHttpRespond(char *acceptKey, uint32_t acceptKeyLen, char *package)
+static void ws_buildHttpRespond(char *acceptKey, uint32_t acceptKeyLen, char *package)
 {
     const char httpDemo[] =
         "HTTP/1.1 101 Switching Protocols\r\n"
@@ -663,7 +663,7 @@ void ws_buildHttpRespond(char *acceptKey, uint32_t acceptKeyLen, char *package)
  * 返回: 打包后的长度(会比原数据长2~14个字节不等) <=0 打包失败 
  * 说明: 无
  ******************************************************************************/
-int32_t ws_enPackage(
+static int32_t ws_enPackage(
     uint8_t *data,
     uint32_t dataLen,
     uint8_t *package,
@@ -789,7 +789,7 @@ int32_t ws_enPackage(
  * 说明:
  *      建议recv时先接收14字节然后解包,根据返回缺失长度再recv一次,最后再解包,这样可有效避免连包时只解析到一包的问题
  ******************************************************************************/
-int32_t ws_dePackage(
+static int32_t ws_dePackage(
     uint8_t *data,
     uint32_t len,
     uint32_t *retDataLen,
