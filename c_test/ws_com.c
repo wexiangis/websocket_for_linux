@@ -78,14 +78,14 @@ typedef struct
     bool actionEnd;
 } GetHostName_Struct;
 
-static void *ws_getHost_fun(void *arge)
+static void *ws_getHostThread(void *argv)
 {
     int32_t ret;
     //int32_t i;
     char buf[1024];
     struct hostent host_body, *host = NULL;
     struct in_addr **addr_list;
-    GetHostName_Struct *gs = (GetHostName_Struct *)arge;
+    GetHostName_Struct *gs = (GetHostName_Struct *)argv;
 
     /*  此类方法不可重入!  即使关闭线程
     if((host = gethostbyname(gs->ip)) == NULL)
@@ -112,6 +112,7 @@ static void *ws_getHost_fun(void *arge)
     //     printf("%s, ", inet_ntoa(*addr_list[i]));
     // printf("\r\n");
 
+    //一个域名可用解析出多个ip,这里只用了第一个
     if (addr_list[0] == NULL)
     {
         gs->actionEnd = true;
@@ -125,40 +126,31 @@ static void *ws_getHost_fun(void *arge)
 }
 
 //域名转IP工具,成功返回大于0请求时长ms,失败返回负值的请求时长ms
-int ws_getIpByHostName(char *hostName, char *backIp)
+int ws_getIpByHostName(const char *hostName, char *retIp, int timeoutMs)
 {
-    int32_t i, timeoutCount = 1;
+    int timeout = 0;
     GetHostName_Struct gs;
-    if (hostName == NULL)
-        return -1;
-    else if (strlen(hostName) < 1)
+    if (!hostName || strlen(hostName) < 1)
         return -1;
     //开线程从域名获取IP
     memset(&gs, 0, sizeof(GetHostName_Struct));
     strcpy(gs.ip, hostName);
     gs.result = false;
     gs.actionEnd = false;
-    if (pthread_create(&gs.thread_id, NULL, (void *)ws_getHost_fun, &gs) < 0)
+    if (pthread_create(&gs.thread_id, NULL, (void *)ws_getHostThread, &gs) < 0)
         return -1;
-    i = 0;
-    while (!gs.actionEnd)
-    {
-        if (++i > 10)
-        {
-            i = 0;
-            if (++timeoutCount > 1000)
-                break;
-        }
-        ws_delayms(1000); //1ms延时
-    }
+    //等待请求结果
+    do {
+        ws_delayms(1);
+    } while (!gs.actionEnd && ++timeout < timeoutMs);
     //pthread_cancel(gs.thread_id);
     pthread_join(gs.thread_id, NULL);
     if (!gs.result)
-        return -timeoutCount;
-    //开线程从域名获取IP
-    memset(backIp, 0, strlen((const char *)backIp));
-    strcpy(backIp, gs.ip);
-    return timeoutCount;
+        return -timeout;
+    //一个域名可用解析出多个ip,这里只用了第一个
+    memset(retIp, 0, strlen((const char *)retIp));
+    strcpy(retIp, gs.ip);
+    return timeout;
 }
 
 //==================== 加密方法BASE64 ====================
@@ -988,7 +980,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
     //report_addr.sin_addr.s_addr = inet_addr(ip);
     if ((report_addr.sin_addr.s_addr = inet_addr(ip)) == INADDR_NONE)
     {
-        ret = ws_getIpByHostName(ip, tempIp);
+        ret = ws_getIpByHostName(ip, tempIp, 1000);
         if (ret < 0)
             return ret;
         else if (strlen((const char *)tempIp) < 7)
@@ -998,7 +990,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
         if ((report_addr.sin_addr.s_addr = inet_addr(tempIp)) == INADDR_NONE)
             return -ret;
 #ifdef WS_DEBUG
-        WS_LOG2("Host(%s) to Ip(%s)\r\n", ip, tempIp);
+        WS_LOG2("Host(%s) to IP(%s)\r\n", ip, tempIp);
 #endif
     }
 

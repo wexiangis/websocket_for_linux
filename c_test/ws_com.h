@@ -36,7 +36,7 @@ void ws_delayms(uint32_t ms);
 char *ws_time(void); //返回时间戳,格式如"20:45:30"
 
 //域名转IP工具,成功返回大于0请求时长ms,失败返回负值的请求时长ms
-int ws_getIpByHostName(char *hostName, char *backIp);
+int ws_getIpByHostName(const char *hostName, char *retIp, int timeoutMs);
 
 #ifdef __cplusplus
 }
