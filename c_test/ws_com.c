@@ -23,11 +23,9 @@
 
 #include "ws_com.h"
 
-//不带参数 和 带参数
-#define WS_LOG(fmt) fprintf(stdout, "[WS_LOG] %s(%d): " fmt, __func__, __LINE__)
-#define WS_LOG2(fmt, argv...) fprintf(stdout, "[WS_LOG] %s(%d): " fmt, __func__, __LINE__, ##argv)
-#define WS_ERR(fmt) fprintf(stderr, "[WS_ERR] %s(%d): " fmt, __func__, __LINE__)
-#define WS_ERR2(fmt, argv...) fprintf(stderr, "[WS_ERR] %s(%d): " fmt, __func__, __LINE__, ##argv)
+#define WS_INFO(argv...) fprintf(stdout, "[WS_INFO] %s(%d): ", __func__, __LINE__),fprintf(stdout, ##argv)
+#define WS_ERR(argv...) fprintf(stdout, "[WS_ERR] %s(%d): ", __func__, __LINE__),fprintf(stdout, ##argv)
+
 static void WS_HEX(FILE *f, void *dat, uint32_t len)
 {
     uint8_t *p = (uint8_t*)dat;
@@ -574,12 +572,12 @@ static int32_t ws_matchShakeKey(char *clientKey, uint32_t clientKeyLen, char *ac
     retLen = ws_buildRespondShakeKey(clientKey, clientKeyLen, tempKey);
     if (retLen != acceptKeyLen)
     {
-        WS_ERR2("len err, clientKey[%d] != acceptKey[%d]\r\n", retLen, acceptKeyLen);
+        WS_ERR("len err, clientKey[%d] != acceptKey[%d]\r\n", retLen, acceptKeyLen);
         return -1;
     }
     else if (strcmp((const char *)tempKey, (const char *)acceptKey) != 0)
     {
-        WS_ERR2("strcmp err, clientKey[%s -> %s] != acceptKey[%s]\r\n", clientKey, tempKey, acceptKey);
+        WS_ERR("strcmp err, clientKey[%s -> %s] != acceptKey[%s]\r\n", clientKey, tempKey, acceptKey);
         return -1;
     }
     return 0;
@@ -990,7 +988,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
         if ((report_addr.sin_addr.s_addr = inet_addr(tempIp)) == INADDR_NONE)
             return -ret;
 #ifdef WS_DEBUG
-        WS_LOG2("Host(%s) to IP(%s)\r\n", ip, tempIp);
+        WS_INFO("Host(%s) to IP(%s)\r\n", ip, tempIp);
 #endif
     }
 
@@ -1011,7 +1009,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
     {
         if (++timeoutCount > timeoutMs)
         {
-            WS_ERR2("connect to %s:%d timeout(%dms)\r\n", ip, port, timeoutCount);
+            WS_ERR("connect to %s:%d timeout(%dms)\r\n", ip, port, timeoutCount);
             close(fd);
             return -timeoutCount;
         }
@@ -1030,7 +1028,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
     send(fd, httpHead, strlen((const char *)httpHead), MSG_NOSIGNAL);
 
 #ifdef WS_DEBUG
-    WS_LOG2("connect: %dms\r\n%s\r\n", timeoutCount, httpHead);
+    WS_INFO("connect: %dms\r\n%s\r\n", timeoutCount, httpHead);
 #endif
     while (1)
     {
@@ -1040,7 +1038,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
         {
 #ifdef WS_DEBUG
             //显示http返回
-            WS_LOG2("recv: len %d / %dms\r\n%s\r\n", ret, timeoutCount, retBuff);
+            WS_INFO("recv: len %d / %dms\r\n%s\r\n", ret, timeoutCount, retBuff);
 #endif
             //返回的是http回应信息
             if (strncmp((const char *)retBuff, "HTTP", 4) == 0)
@@ -1065,7 +1063,7 @@ int ws_connectToServer(char *ip, int port, char *path, int timeoutMs)
             else
             {
                 //#ifdef WS_DEBUG
-                WS_ERR2("recv: len %d / unknown context\r\n%s\r\n", ret, retBuff);
+                WS_ERR("recv: len %d / unknown context\r\n%s\r\n", ret, retBuff);
                 WS_HEX(stderr, retBuff, ret);
                 //#endif
             }
@@ -1098,7 +1096,7 @@ int ws_responseClient(int fd, char *data, int dataLen, char *path)
     char recvShakeKey[512] = {0};
     char respondPackage[1024] = {0};
 #ifdef WS_DEBUG
-    WS_LOG2("recv: len %d \r\n%s\r\n", dataLen, data);
+    WS_INFO("recv: len %d \r\n%s\r\n", dataLen, data);
 #endif
     //path检查
     if (path && !strstr((char *)data, path))
@@ -1158,7 +1156,7 @@ int ws_send(int fd, char *data, int dataLen, bool mask, Ws_DataType type)
     }
 #ifdef WS_DEBUG
     //显示数据
-    WS_LOG2("ws_send: len/%d\r\n", retLen);
+    WS_INFO("ws_send: len/%d\r\n", retLen);
     WS_HEX(stdout, wsPkg, retLen);
 #endif
     ret = send(fd, wsPkg, retLen, MSG_NOSIGNAL);
@@ -1218,7 +1216,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, Ws_DataType *dataType)
             if (retDePkg < 0)
             {
                 //1. 发出警告
-                WS_ERR2("warnning, pkgLen(%d) > dataMaxLen(%d)\r\n", retRecv - retDePkg, dataMaxLen);
+                WS_ERR("warnning, pkgLen(%d) > dataMaxLen(%d)\r\n", retRecv - retDePkg, dataMaxLen);
                 //2. 把这包数据丢弃,以免影响后续包
                 while (recv(fd, tmp, sizeof(tmp), MSG_NOSIGNAL) > 0)
                     ;
@@ -1226,7 +1224,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, Ws_DataType *dataType)
             retFinal = -retRecv;
 #ifdef WS_DEBUG
             //显示数据
-            WS_LOG2("ws_recv1: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
+            WS_INFO("ws_recv1: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
                     retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
             WS_HEX(stdout, data, retRecv);
 #endif
@@ -1259,7 +1257,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, Ws_DataType *dataType)
                 }
 #ifdef WS_DEBUG
                 //显示数据
-                WS_LOG2("ws_recv2: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
+                WS_INFO("ws_recv2: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
                         retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
                 WS_HEX(stdout, data, retRecv);
 #endif
@@ -1268,7 +1266,7 @@ int ws_recv(int fd, char *data, int dataMaxLen, Ws_DataType *dataType)
             }
 #ifdef WS_DEBUG
             //显示数据
-            WS_LOG2("ws_recv3: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
+            WS_INFO("ws_recv3: len/%d retDePkg/%d retDataLen/%d retHeadLen/%d retPkgType/%d\r\n",
                     retRecv, retDePkg, retDataLen, retHeadLen, retPkgType);
             WS_HEX(stdout, data, retRecv);
 #endif
@@ -1280,19 +1278,19 @@ int ws_recv(int fd, char *data, int dataMaxLen, Ws_DataType *dataType)
                 {
                     //自动 ping-pong
                     ws_send(fd, NULL, 0, false, WDT_PONG);
-                    // WS_LOG("ws_recv: WDT_PING\r\n");
+                    // WS_INFO("ws_recv: WDT_PING\r\n");
                     retFinal = 0;
                 }
                 //收到 PONG 包
                 else if (retPkgType == WDT_PONG)
                 {
-                    // WS_LOG("ws_recv: WDT_PONG\r\n");
+                    // WS_INFO("ws_recv: WDT_PONG\r\n");
                     retFinal = 0;
                 }
                 //收到 断连 包
                 else if (retPkgType == WDT_DISCONN)
                 {
-                    // WS_LOG("ws_recv: WDT_DISCONN\r\n");
+                    // WS_INFO("ws_recv: WDT_DISCONN\r\n");
                     retFinal = 0;
                 }
                 //其它正常数据包

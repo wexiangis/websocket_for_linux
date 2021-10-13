@@ -6,6 +6,8 @@ extern "C"
 {
 #endif
 
+#include <stdint.h>
+#include <stdbool.h>
 #include <pthread.h>
 #include "ws_com.h"
 
@@ -49,8 +51,8 @@ typedef enum {
     WET_EPOLL, //epoll检测
     WET_SEND,  //发送失败
     WET_LOGIN, //websocket握手检查失败(http请求格式错误或者path值不一致)
-    WET_LOGIN_TIMEOUT, //连接后迟迟不websocket握手
-    WET_PKG_DIS,       //收到断开协议包
+    WET_LOGIN_TIMEOUT, //连接后迟迟不发起websocket握手
+    WET_DISCONNECT,    //收到断开协议包
 } Ws_ExitType;
 
 //先声明结构体,后面可以互相嵌套使用
@@ -66,13 +68,15 @@ typedef void (*WsOnExit)(Ws_Client *wsc, Ws_ExitType exitType);
 //客户端使用的参数结构体
 struct WsClient
 {
-    int fd;               //accept之后得到的客户端连接描述符
-    Ws_ExitType exitType; //断连标志
-    bool isLogin;         //是否完成websocket握手验证
-    bool isExiting;            //正在退出(防止反复del)
-    unsigned int recvBytes;    //总接收字节计数
-    unsigned int order;        //接入客户端的历史序号(从1数起)
-    unsigned int loginTimeout; //等待websocket握手超时计数
+    int fd;        //accept之后得到的客户端连接描述符
+    uint8_t ip[4]; //接入客户端的ip(accpet阶段获得)
+    int port;      //接入客户端的端口
+    Ws_ExitType exitType;  //断连标志
+    bool isLogin;          //是否完成websocket握手验证
+    bool isExiting;        //正在退出(防止反复del)
+    uint32_t recvBytes;    //总接收字节计数
+    uint32_t order;        //接入客户端的历史序号(从1数起)
+    uint32_t loginTimeout; //等待websocket握手超时计数
     void *priv;     //用户私有指针
     Ws_Server *wss; //所在服务器指针
     Ws_Thread *wst; //所在副线程指针

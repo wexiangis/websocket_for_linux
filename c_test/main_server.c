@@ -54,7 +54,9 @@ void onMessage(Ws_Client *wsc, char *msg, int msgLen, Ws_DataType type)
 //客户端接入时(已连上),你要做什么?
 void onLogin(Ws_Client *wsc)
 {
-    printf("onLogin: fd/%03d order/%03d total/%03d\r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+    printf("onLogin: fd/%03d order/%03d total/%03d addr/%d.%d.%d.%d:%d\r\n",
+        wsc->fd, wsc->order, wsc->wss->clientCount,
+        wsc->ip[0], wsc->ip[1], wsc->ip[2], wsc->ip[3], wsc->port);
     //打招呼
     ws_send(wsc->fd, "Say hi~ I am server", 19, false, WDT_TXTDATA);
 }
@@ -63,18 +65,26 @@ void onLogin(Ws_Client *wsc)
 void onExit(Ws_Client *wsc, Ws_ExitType exitType)
 {
     //断开原因
-    if (exitType == WET_EPOLL)
+    switch (exitType)
+    {
+    case WET_EPOLL:
         printf("onExit: fd/%03d order/%03d total/%03d disconnect by epoll\r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
-    else if (exitType == WET_SEND)
+        break;
+    case WET_SEND:
         printf("onExit: fd/%03d order/%03d total/%03d disconnect by send\r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
-    else if (exitType == WET_LOGIN)
+        break;
+    case WET_LOGIN:
         printf("onExit: fd/%03d order/%03d total/%03d disconnect by login failed \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
-    else if (exitType == WET_LOGIN_TIMEOUT)
+        break;
+    case WET_LOGIN_TIMEOUT:
         printf("onExit: fd/%03d order/%03d total/%03d disconnect by login timeout \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
-    else if (exitType == WET_PKG_DIS)
-        printf("onExit: fd/%03d order/%03d total/%03d disconnect by pkg dis \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
-    else
+        break;
+    case WET_DISCONNECT:
+        printf("onExit: fd/%03d order/%03d total/%03d disconnect by disconnect \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+        break;
+    default:
         printf("onExit: fd/%03d order/%03d total/%03d disconnect by unknow \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+    }
 }
 
 /*

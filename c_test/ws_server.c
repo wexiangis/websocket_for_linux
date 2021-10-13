@@ -14,8 +14,7 @@
 
 #include "ws_server.h"
 
-#define WSS_ERR(fmt) fprintf(stderr, "[WSS_ERR] %s(%d): " fmt, __func__, __LINE__)
-#define WSS_ERR2(fmt, argv...) fprintf(stderr, "[WSS_ERR] %s(%d): " fmt, __func__, __LINE__, ##argv)
+#define WSS_ERR(argv...) fprintf(stdout, "[WSS_ERR] %s(%d): ", __func__, __LINE__),fprintf(stdout, ##argv)
 
 //服务器副线程,负责检测 数据接收 和 客户端断开
 static void server_thread2(void *argv);
@@ -32,7 +31,7 @@ static void new_thread(void *obj, void *callback)
     //抛出线程
     ret = pthread_create(&th, &attr, callback, (void *)obj);
     if (ret != 0)
-        WSS_ERR2("pthread_create failed !! %s\r\n", strerror(ret));
+        WSS_ERR("pthread_create failed !! %s\r\n", strerror(ret));
     //attr destroy
     pthread_attr_destroy(&attr);
 }
@@ -47,7 +46,7 @@ static void _epoll_ctrl(int fd_epoll, int fd, uint32_t event, int ctrl, void *pt
     else
         ev.data.fd = fd;
     if (epoll_ctl(fd_epoll, ctrl, fd, &ev) != 0)
-        WSS_ERR2("epoll ctrl %d error !!\r\n", ctrl);
+        WSS_ERR("epoll ctrl %d error !!\r\n", ctrl);
 }
 
 /*
@@ -97,7 +96,7 @@ static int client_recv(Ws_Client *wsc)
     //断连协议,标记断开类型
     if (retPkgType == WDT_DISCONN)
     {
-        wsc->exitType = WET_PKG_DIS;
+        wsc->exitType = WET_DISCONNECT;
         return -1;
     }
     //正常返回
@@ -125,7 +124,7 @@ static void client_onExit(void *argv)
 }
 
 //取得空闲的坑
-static Ws_Client *client_get(Ws_Server *wss, int fd)
+static Ws_Client *client_get(Ws_Server *wss, int fd, uint32_t ip, int port)
 {
     int i;
     for (i = 0; i < WS_SERVER_CLIENT; i++)
@@ -136,12 +135,14 @@ static Ws_Client *client_get(Ws_Server *wss, int fd)
         {
             memset(&wss->client[i], 0, sizeof(Ws_Client));
             wss->client[i].fd = fd; //占用
+            *((uint32_t*)(wss->client[i].ip)) = ip;
+            wss->client[i].port = port;
             wss->client[i].wss = wss;
             wss->client[i].priv = wss->priv;
             return &wss->client[i];
         }
     }
-    WSS_ERR2("failed, out of range(%d) !!\r\n", WS_SERVER_CLIENT); //满员
+    WSS_ERR("failed, out of range(%d) !!\r\n", WS_SERVER_CLIENT); //满员
     return NULL;
 }
 
@@ -156,12 +157,12 @@ wsc->order = wss->clientCount;\
 _epoll_ctrl(wst[i].fd_epoll, wsc->fd, EPOLLIN, EPOLL_CTL_ADD, wsc);
 
 //添加客户端
-static void client_add(Ws_Server *wss, int fd)
+static void client_add(Ws_Server *wss, int fd, uint32_t ip, int port)
 {
     int i;
     Ws_Thread *wst = wss->thread;
     //取得空闲客户端指针
-    Ws_Client *wsc = client_get(wss, fd);
+    Ws_Client *wsc = client_get(wss, fd, ip, port);
     if (!wsc)
         return;
     //遍历线程,谁有空谁托管
@@ -193,7 +194,7 @@ static void client_add(Ws_Server *wss, int fd)
             return;
         }
     }
-    WSS_ERR2("failed, out of range(%d) !!\r\n", WS_SERVER_CLIENT); //线程负荷已满
+    WSS_ERR("failed, out of range(%d) !!\r\n", WS_SERVER_CLIENT); //线程负荷已满
     memset(wsc, 0, sizeof(Ws_Client)); //释放占用的坑
 }
 
@@ -326,7 +327,7 @@ static void server_thread(void *argv)
     {
         if (++count > WS_SERVER_BIND_TIMEOUT_MS)
         {
-            WSS_ERR2("bind timeout %d 服务器端口占用中,请稍候再试\r\n", count);
+            WSS_ERR("bind timeout %d 服务器端口占用中,请稍候再试\r\n", count);
             goto server_exit;
         }
         ws_delayms(1);
@@ -335,7 +336,7 @@ static void server_thread(void *argv)
     //listen
     if (listen(wss->fd, 0) != 0)
     {
-        WSS_ERR2("listen failed\r\n");
+        WSS_ERR("listen failed\r\n");
         goto server_exit;
     }
 
@@ -361,7 +362,7 @@ static void server_thread(void *argv)
                 fd_accept = accept(wss->fd, (struct sockaddr *)&acceptAddr, &socAddrLen);
                 //添加客户端
                 if (fd_accept >= 0)
-                    client_add(wss, fd_accept);
+                    client_add(wss, fd_accept, acceptAddr.sin_addr.s_addr, acceptAddr.sin_port);
             }
         }
     }
