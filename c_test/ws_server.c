@@ -137,6 +137,7 @@ static Ws_Client *client_get(Ws_Server *wss, int fd)
             memset(&wss->client[i], 0, sizeof(Ws_Client));
             wss->client[i].fd = fd; //占用
             wss->client[i].wss = wss;
+            wss->client[i].priv = wss->priv;
             return &wss->client[i];
         }
     }

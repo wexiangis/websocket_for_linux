@@ -88,11 +88,11 @@ int main(int argc, char **argv)
     //服务器必须参数
     Ws_Server *wss = ws_server_create(
         argc > 1 ? atoi(argv[1]) : 9999, //服务器端口
-        argc > 2 ? argv[2] : "/", //服务器路径(这样写表示路径为空)
-        NULL, //指向自己的数据的指针,回调函数里使用 wsc->priv 取回
-        &onLogin, //客户端接入时(已连上),你要做什么?
+        argc > 2 ? argv[2] : "/",        //服务器路径(这样写表示路径为空)
+        NULL,       //指向自己的数据的指针,回调函数里使用 wsc->priv 取回
+        &onLogin,   //客户端接入时(已连上),你要做什么?
         &onMessage, //收到客户端数据时,你要做什么?
-        &onExit); //客户端断开时(已断开),你要做什么?
+        &onExit);   //客户端断开时(已断开),你要做什么?
 
     //服务器启动至少先等3秒(有时会bind超时)
     while (!wss->isExit)

@@ -9,10 +9,9 @@ extern "C"
 #include <pthread.h>
 #include "ws_com.h"
 
-//收包缓冲区大小,需确保能够一次接收完一包数据
-//每接入一个客户端将开辟一块空间
-//按需要调整
-#define WS_SERVER_PKG (1024 * 10 + 16)
+//收包缓冲区大小,应确保能够一次接收完一整包数据,按需调整
+//每接入一个客户端将开辟一块独立缓冲区空间
+#define WS_SERVER_PKG (1024 * 100 + 16)
 
 //最大副线程数量(不包括负责accept的主线程)
 //计算机线程数量有限,建议限制在300以内(或上网搜索"linux最大线程数量"进一步了解)
@@ -48,10 +47,10 @@ extern "C"
 typedef enum {
     WET_NONE = 0,
     WET_EPOLL, //epoll检测
-    WET_SEND, //发送失败
+    WET_SEND,  //发送失败
     WET_LOGIN, //websocket握手检查失败(http请求格式错误或者path值不一致)
     WET_LOGIN_TIMEOUT, //连接后迟迟不websocket握手
-    WET_PKG_DIS, //收到断开协议包
+    WET_PKG_DIS,       //收到断开协议包
 } Ws_ExitType;
 
 //先声明结构体,后面可以互相嵌套使用
@@ -67,13 +66,14 @@ typedef void (*WsOnExit)(Ws_Client *wsc, Ws_ExitType exitType);
 //客户端使用的参数结构体
 struct WsClient
 {
-    int fd; //accept之后得到的客户端连接描述符
+    int fd;               //accept之后得到的客户端连接描述符
     Ws_ExitType exitType; //断连标志
-    bool isLogin; //是否完成websocket握手验证
-    bool isExiting; //正在退出(防止反复del)
-    unsigned int recvBytes; //总接收字节计数
-    unsigned int order; //接入客户端的历史序号(从1数起)
+    bool isLogin;         //是否完成websocket握手验证
+    bool isExiting;            //正在退出(防止反复del)
+    unsigned int recvBytes;    //总接收字节计数
+    unsigned int order;        //接入客户端的历史序号(从1数起)
     unsigned int loginTimeout; //等待websocket握手超时计数
+    void *priv;     //用户私有指针
     Ws_Server *wss; //所在服务器指针
     Ws_Thread *wst; //所在副线程指针
 };
@@ -81,22 +81,22 @@ struct WsClient
 //副线程结构体(只要还有一个客户端在维护就不会退出线程)
 struct WsThread
 {
-    int fd_epoll; //epoll描述符
+    int fd_epoll;    //epoll描述符
     int clientCount; //该线程正在维护的客户端数量
-    bool isRun; //线程运行状况
+    bool isRun;      //线程运行状况
     Ws_Server *wss;
 };
 
 //服务器主线程使用的参数结构体
 struct WsServer
 {
-    int fd; //服务器描述符
-    int fd_epoll; //epoll描述符
-    int port; //服务器端口
-    char path[256]; //服务器路径
-    void *priv; //用指针传递自己的数据到回调函数里使用,而不是全局变量
+    int fd;          //服务器描述符
+    int fd_epoll;    //epoll描述符
+    int port;        //服务器端口
+    char path[256];  //服务器路径
+    void *priv;      //用户私有指针
     int clientCount; //当前接入客户端总数
-    bool isExit; //线程结束标志
+    bool isExit;     //线程结束标志
     WsOnLogin onLogin;
     WsOnMessage onMessage;
     WsOnExit onExit;
@@ -108,7 +108,7 @@ struct WsServer
 Ws_Server* ws_server_create(
     int port,         //服务器端口
     const char *path, //服务器路径
-    void *priv,       //指向自己的数据的指针,回调函数里使用 wsc->priv 取回
+    void *priv,       //用户私有指针,回调函数里使用 wsc->priv 取回
     WsOnLogin onLogin,     //客户端接入时(已连上),你要做什么?
     WsOnMessage onMessage, //收到客户端数据时,你要做什么?
     WsOnExit onExit);      //客户端断开时(已断开),你要做什么?
