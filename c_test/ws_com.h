@@ -10,7 +10,7 @@ extern "C"
 #include <stdbool.h> //引入 bool 类型
 #include <stdint.h>  //引入 int8_t uint8_t int32_t uint32_t 等
 
-// #define WS_DEBUG
+// #define WS_DEBUG //开启debug打印
 
 // websocket根据data[0]判别数据包类型
 // 比如0x81 = 0x80 | 0x1 为一个txt类型数据包

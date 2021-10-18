@@ -8,7 +8,7 @@
 #include "ws_com.h"
 
 //发包数据量 10K
-#define SEND_PKG_MAX (10240)
+#define SEND_PKG_MAX (1024 * 10)
 
 //收包缓冲区大小 10K+
 #define RECV_PKG_MAX (SEND_PKG_MAX + 16)

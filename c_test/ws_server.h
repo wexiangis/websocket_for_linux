@@ -75,7 +75,7 @@ struct WsClient
     bool isLogin;          //是否完成websocket握手验证
     bool isExiting;        //正在退出(防止反复del)
     uint32_t recvBytes;    //总接收字节计数
-    uint32_t order;        //接入客户端的历史序号(从1数起)
+    uint32_t index;        //接入客户端的历史序号(从1数起)
     uint32_t loginTimeout; //等待websocket握手超时计数
     void *priv;     //用户私有指针
     Ws_Server *wss; //所在服务器指针
@@ -101,6 +101,7 @@ struct WsServer
     void *priv;      //用户私有指针
     int clientCount; //当前接入客户端总数
     bool isExit;     //线程结束标志
+    pthread_mutex_t lock;
     WsOnLogin onLogin;
     WsOnMessage onMessage;
     WsOnExit onExit;

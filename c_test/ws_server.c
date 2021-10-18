@@ -58,49 +58,65 @@ static void _epoll_ctrl(int fd_epoll, int fd, uint32_t event, int ctrl, void *pt
  */
 static int client_recv(Ws_Client *wsc)
 {
-    int ret;
-    char buff[WS_SERVER_PKG] = {0};
+    int ret = 0;
     Ws_DataType retPkgType = WDT_NULL;
+    char *buff = (char*)calloc(WS_SERVER_PKG, 1);
 
-    ret = ws_recv(wsc->fd, buff, sizeof(buff), &retPkgType);
-
-    //这可能是一包客户端请求
-    if (!wsc->isLogin && ret < 0 &&
-        strncmp(buff, "GET", 3) == 0 &&
-        strstr(buff, "Sec-WebSocket-Key"))
+    if (!buff)
     {
-        //构建回复
-        if (ws_responseClient(wsc->fd, buff, -ret, wsc->wss->path) > 0)
-        {
-            //这个延时很有必要,否则下面onLogin里面发东西客户端可能收不到
-            ws_delayms(5);
-            wsc->isLogin = true;
-            //回调
-            if (wsc->wss->onLogin)
-                wsc->wss->onLogin(wsc);
-            return 0;
-        }
-        //websocket握手失败,标记断开类型
-        else
-        {
-            wsc->exitType = WET_LOGIN;
-            return -1;
-        }
-    }
-    //接收数据量统计
-    if (ret != 0)
-        wsc->recvBytes += ret > 0 ? ret : (-ret);
-    //消息回调
-    if (wsc->wss->onMessage)
-        wsc->wss->onMessage(wsc, buff, ret, retPkgType);
-    //断连协议,标记断开类型
-    if (retPkgType == WDT_DISCONN)
-    {
-        wsc->exitType = WET_DISCONNECT;
+        WSS_ERR("calloc %dbytes failed\r\n", WS_SERVER_PKG);
         return -1;
     }
+
+    do
+    {
+        ret = ws_recv(wsc->fd, buff, WS_SERVER_PKG, &retPkgType);
+        //这可能是一包客户端请求
+        if (!wsc->isLogin &&
+            ret < 0 &&
+            strncmp(buff, "GET", 3) == 0 &&
+            strstr(buff, "Sec-WebSocket-Key"))
+        {
+            //构建回复
+            if (ws_responseClient(wsc->fd, buff, -ret, wsc->wss->path) > 0)
+            {
+                //这个延时很有必要,否则下面onLogin里面发东西客户端可能收不到
+                ws_delayms(5);
+                wsc->isLogin = true;
+                //回调
+                if (wsc->wss->onLogin)
+                    wsc->wss->onLogin(wsc);
+                ret = 0;
+                break;
+            }
+            //websocket握手失败,标记断开类型
+            else
+            {
+                wsc->exitType = WET_LOGIN;
+                ret = -1;
+                break;
+            }
+        }
+        //接收数据量统计
+        if (ret != 0)
+            wsc->recvBytes += ret > 0 ? ret : (-ret);
+        //消息回调
+        if (wsc->wss->onMessage)
+            wsc->wss->onMessage(wsc, buff, ret, retPkgType);
+        //断连协议,标记断开类型
+        if (retPkgType == WDT_DISCONN)
+        {
+            wsc->exitType = WET_DISCONNECT;
+            ret = -1;
+            break;
+        }
+        //有效的一次数据接收返回1
+        if (ret != 0)
+            ret = 1;
+    } while (0);
+    free(buff);
     //正常返回
-    return ret == 0 ? 0 : 1;
+    return ret;
 }
 
 //onMessage异步回调
@@ -153,7 +169,7 @@ wst[i].clientCount += 1;\
 wsc->fd = fd;\
 wsc->wss = wss;\
 wsc->wst = &wss->thread[i];\
-wsc->order = wss->clientCount;\
+wsc->index = wss->clientCount;\
 _epoll_ctrl(wst[i].fd_epoll, wsc->fd, EPOLLIN, EPOLL_CTL_ADD, wsc);
 
 //添加客户端
@@ -340,6 +356,8 @@ static void server_thread(void *argv)
         goto server_exit;
     }
 
+    pthread_mutex_init(&wss->lock, NULL);
+
     //创建一个epoll描述符
     wss->fd_epoll = epoll_create(WS_SERVER_CLIENT);
 
@@ -366,11 +384,15 @@ static void server_thread(void *argv)
             }
         }
     }
+    
     //移除所有副线程
     wss->isExit = true;
     //关闭epoll描述符
     close(wss->fd_epoll);
     wss->fd_epoll = 0;
+
+    pthread_mutex_destroy(&wss->lock);
+
 server_exit:
     wss->isExit = true;
     //关闭socket

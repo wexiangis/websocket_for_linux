@@ -1206,8 +1206,8 @@ int ws_recv(int fd, char *data, int dataMaxLen, Ws_DataType *dataType)
     {
         //数据解包
         retDePkg = ws_dePackage((uint8_t *)data, retRecv, &retDataLen, &retHeadLen, &retPkgType);
-        //1. 非标准数据包数据,再接收一次(防止丢数据),之后返回 -len
-        //2. dataMaxLen不足已收下这一包数据,当作非标准数据包数据处理,能收多少算多少
+        //1. 非标准数据包数据,再接收一次(防止丢数据),之后返回"负len"长度值
+        //2. dataMaxLen不足以收下这一包数据,当作非标准数据包数据处理,能收多少算多少
         if (retDePkg == 0 || (retDePkg < 0 && retRecv - retDePkg > dataMaxLen))
         {
             //能收多少算多少

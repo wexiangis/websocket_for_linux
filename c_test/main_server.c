@@ -19,8 +19,8 @@ void onMessage(Ws_Client *wsc, char *msg, int msgLen, Ws_DataType type)
     {
         //客户端过多时不再打印,避免卡顿
         if (wsc->wss->clientCount <= WS_SERVER_CLIENT_OF_PRINTF)
-            printf("onMessage: fd/%03d order/%03d total/%03d %d/%dbytes %s\r\n",
-                wsc->fd, wsc->order, wsc->wss->clientCount, msgLen, wsc->recvBytes, msgLen < 128 ? msg : " ");
+            printf("onMessage: fd/%03d index/%03d total/%03d %d/%dbytes %s\r\n",
+                wsc->fd, wsc->index, wsc->wss->clientCount, msgLen, wsc->recvBytes, msgLen < 128 ? msg : " ");
 
         //在这里根据客户端的请求内容, 提供相应的回复
         if (strstr(msg, "Say hi~") != NULL)
@@ -36,26 +36,26 @@ void onMessage(Ws_Client *wsc, char *msg, int msgLen, Ws_DataType type)
     else if (msgLen < 0)
     {
         msgLen = -msgLen;
-        printf("onMessage: fd/%03d order/%03d total/%03d %d/%dbytes bad pkg %s\r\n",
-               wsc->fd, wsc->order, wsc->wss->clientCount, msgLen, wsc->recvBytes, msgLen < 128 ? msg : " ");
+        printf("onMessage: fd/%03d index/%03d total/%03d %d/%dbytes bad pkg %s\r\n",
+               wsc->fd, wsc->index, wsc->wss->clientCount, msgLen, wsc->recvBytes, msgLen < 128 ? msg : " ");
     }
     //特殊包(不需作任何处理,知道就行)
     else
     {
         if (type == WDT_PING)
-            printf("onMessage: fd/%03d order/%03d total/%03d pkg WDT_PING \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+            printf("onMessage: fd/%03d index/%03d total/%03d pkg WDT_PING \r\n", wsc->fd, wsc->index, wsc->wss->clientCount);
         else if (type == WDT_PONG)
-            printf("onMessage: fd/%03d order/%03d total/%03d pkg WDT_PONG \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+            printf("onMessage: fd/%03d index/%03d total/%03d pkg WDT_PONG \r\n", wsc->fd, wsc->index, wsc->wss->clientCount);
         else if (type == WDT_DISCONN)
-            printf("onMessage: fd/%03d order/%03d total/%03d pkg WDT_DISCONN \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+            printf("onMessage: fd/%03d index/%03d total/%03d pkg WDT_DISCONN \r\n", wsc->fd, wsc->index, wsc->wss->clientCount);
     }
 }
 
 //客户端接入时(已连上),你要做什么?
 void onLogin(Ws_Client *wsc)
 {
-    printf("onLogin: fd/%03d order/%03d total/%03d addr/%d.%d.%d.%d:%d\r\n",
-        wsc->fd, wsc->order, wsc->wss->clientCount,
+    printf("onLogin: fd/%03d index/%03d total/%03d addr/%d.%d.%d.%d:%d\r\n",
+        wsc->fd, wsc->index, wsc->wss->clientCount,
         wsc->ip[0], wsc->ip[1], wsc->ip[2], wsc->ip[3], wsc->port);
     //打招呼
     ws_send(wsc->fd, "Say hi~ I am server", 19, false, WDT_TXTDATA);
@@ -68,22 +68,22 @@ void onExit(Ws_Client *wsc, Ws_ExitType exitType)
     switch (exitType)
     {
     case WET_EPOLL:
-        printf("onExit: fd/%03d order/%03d total/%03d disconnect by epoll\r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+        printf("onExit: fd/%03d index/%03d total/%03d disconnect by epoll\r\n", wsc->fd, wsc->index, wsc->wss->clientCount);
         break;
     case WET_SEND:
-        printf("onExit: fd/%03d order/%03d total/%03d disconnect by send\r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+        printf("onExit: fd/%03d index/%03d total/%03d disconnect by send\r\n", wsc->fd, wsc->index, wsc->wss->clientCount);
         break;
     case WET_LOGIN:
-        printf("onExit: fd/%03d order/%03d total/%03d disconnect by login failed \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+        printf("onExit: fd/%03d index/%03d total/%03d disconnect by login failed \r\n", wsc->fd, wsc->index, wsc->wss->clientCount);
         break;
     case WET_LOGIN_TIMEOUT:
-        printf("onExit: fd/%03d order/%03d total/%03d disconnect by login timeout \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+        printf("onExit: fd/%03d index/%03d total/%03d disconnect by login timeout \r\n", wsc->fd, wsc->index, wsc->wss->clientCount);
         break;
     case WET_DISCONNECT:
-        printf("onExit: fd/%03d order/%03d total/%03d disconnect by disconnect \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+        printf("onExit: fd/%03d index/%03d total/%03d disconnect by disconnect \r\n", wsc->fd, wsc->index, wsc->wss->clientCount);
         break;
     default:
-        printf("onExit: fd/%03d order/%03d total/%03d disconnect by unknow \r\n", wsc->fd, wsc->order, wsc->wss->clientCount);
+        printf("onExit: fd/%03d index/%03d total/%03d disconnect by unknow \r\n", wsc->fd, wsc->index, wsc->wss->clientCount);
     }
 }
 
@@ -113,8 +113,8 @@ int main(int argc, char **argv)
         {
             if (wss->client[i].fd && wss->client[i].isLogin && !wss->client[i].exitType)
             {
-                snprintf(buff, sizeof(buff), "Tips from server fd/%03d order/%03d total/%03d %s",
-                         wss->client[i].fd, wss->client[i].order, wss->clientCount, ws_time());
+                snprintf(buff, sizeof(buff), "Tips from server fd/%03d index/%03d total/%03d %s",
+                         wss->client[i].fd, wss->client[i].index, wss->clientCount, ws_time());
 
                 // if (ws_send(wss->client[i].fd, buff, sizeof(buff), false, WDT_TXTDATA) < 0) //大数据量压力测试
                 if (ws_send(wss->client[i].fd, buff, strlen(buff), false, WDT_TXTDATA) < 0)
