@@ -139,8 +139,8 @@ static void client_onExit(void *argv)
     memset(wsc, 0, sizeof(Ws_Client));
 }
 
-//取得空闲的坑
-static Ws_Client *client_get(Ws_Server *wss, int fd, uint32_t ip, int port)
+//取得空闲的坑,返回序号
+static int client_get(Ws_Server *wss, int fd, uint32_t ip, int port)
 {
     int i;
     for (i = 0; i < WS_SERVER_CLIENT; i++)
@@ -150,68 +150,65 @@ static Ws_Client *client_get(Ws_Server *wss, int fd, uint32_t ip, int port)
             !wss->client[i].wst)
         {
             memset(&wss->client[i], 0, sizeof(Ws_Client));
-            wss->client[i].fd = fd; //占用
+            wss->client[i].fd = fd;
             *((uint32_t*)(wss->client[i].ip)) = ip;
             wss->client[i].port = port;
             wss->client[i].wss = wss;
             wss->client[i].priv = wss->priv;
-            return &wss->client[i];
+            wss->client[i].index = ++wss->clientCount;
+            return i;
         }
     }
     WSS_ERR("failed, out of range(%d) !!\r\n", WS_SERVER_CLIENT); //满员
-    return NULL;
+    return -1;
 }
 
 //共用代码块,完成客户端加人、客户端结构初始化、注册epoll监听
 #define COMMON_CODE() \
-wss->clientCount += 1;\
-wst[i].clientCount += 1;\
-wsc->fd = fd;\
-wsc->wss = wss;\
-wsc->wst = &wss->thread[i];\
-wsc->index = wss->clientCount;\
-_epoll_ctrl(wst[i].fd_epoll, wsc->fd, EPOLLIN, EPOLL_CTL_ADD, wsc);
+wsc->wst = wst;\
+wst->clientCount += 1;\
+_epoll_ctrl(wst->fd_epoll, wsc->fd, EPOLLIN, EPOLL_CTL_ADD, wsc);
 
 //添加客户端
 static void client_add(Ws_Server *wss, int fd, uint32_t ip, int port)
 {
-    int i;
-    Ws_Thread *wst = wss->thread;
+    int ret;
+    Ws_Client *wsc;
+    Ws_Thread *wst;
+
+    pthread_mutex_lock(&wss->lock);
+
     //取得空闲客户端指针
-    Ws_Client *wsc = client_get(wss, fd, ip, port);
-    if (!wsc)
-        return;
-    //遍历线程,谁有空谁托管
-    for (i = 0; i < WS_SERVER_THREAD; i++)
+    ret = client_get(wss, fd, ip, port);
+    if (ret < 0)
     {
-        if (wst[i].clientCount < WS_SERVER_CLIENT_OF_THREAD && //线程未满员
-            wst[i].isRun && //线程在运行
-            wst[i].fd_epoll) //线程epoll正常
-        {
-            //共用代码块
-            COMMON_CODE();
-            return;
-        }
+        pthread_mutex_unlock(&wss->lock);
+        return;
+    }
+
+    //新增客户端及其匹配的线程
+    wsc = &wss->client[ret];
+    wst = &wss->thread[ret / WS_SERVER_CLIENT_OF_THREAD];
+
+    //线程已开启
+    if (wst->isRun && //线程在运行
+        wst->fd_epoll) //线程epoll正常
+    {
+        //共用代码块
+        COMMON_CODE();
     }
     //开启新线程
-    for (i = 0; i < WS_SERVER_THREAD; i++)
+    else
     {
-        if (!wst[i].isRun &&
-            wst[i].fd_epoll == 0 &&
-            wst[i].clientCount == 0)
-        {
-            //参数初始化
-            wst[i].wss = wss;
-            wst[i].fd_epoll = epoll_create(WS_SERVER_CLIENT_OF_THREAD);
-            //开线程
-            new_thread(&wst[i], &server_thread2);
-            //共用代码块
-            COMMON_CODE();
-            return;
-        }
+        //参数初始化
+        wst->wss = wss;
+        wst->fd_epoll = epoll_create(WS_SERVER_CLIENT_OF_THREAD);
+        //开线程
+        new_thread(wst, &server_thread2);
+        //共用代码块
+        COMMON_CODE();
     }
-    WSS_ERR("failed, out of range(%d) !!\r\n", WS_SERVER_CLIENT); //线程负荷已满
-    memset(wsc, 0, sizeof(Ws_Client)); //释放占用的坑
+    pthread_mutex_unlock(&wss->lock);
 }
 
 //移除特定客户端
@@ -269,7 +266,7 @@ static void server_thread2(void *argv)
     int nfds, count;
     struct epoll_event events[WS_SERVER_CLIENT_OF_THREAD];
 
-    while (!wst->wss->isExit && wst->clientCount > 0)
+    while (!wst->wss->isExit)// && wst->clientCount > 0)
     {
         wst->isRun = true;
         //等待事件发生,-1阻塞,0/非阻塞,其它数值为超时ms
