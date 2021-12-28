@@ -14,13 +14,14 @@
 
 #include "ws_server.h"
 
-#define WSS_ERR(argv...) fprintf(stdout, "[WSS_ERR] %s(%d): ", __func__, __LINE__),fprintf(stdout, ##argv)
+#define WSS_INFO(...) fprintf(stdout, "[WSS_INFO] %s(%d): ", __FUNCTION__, __LINE__),fprintf(stdout, __VA_ARGS__)
+#define WSS_ERR(...) fprintf(stderr, "[WSS_ERR] %s(%d): ", __FUNCTION__, __LINE__),fprintf(stderr, __VA_ARGS__)
 
 //服务器副线程,负责检测 数据接收 和 客户端断开
-static void server_thread2(void *argv);
+static void* server_thread2(void *argv);
 
 //抛线程工具
-static void new_thread(void *obj, void *callback)
+static void new_thread(void *obj, void* (*callback)(void*))
 {
     pthread_t th;
     pthread_attr_t attr;
@@ -78,7 +79,7 @@ static int client_recv(Ws_Client *wsc)
             strstr(buff, "Sec-WebSocket-Key"))
         {
             //构建回复
-            if (ws_responseClient(wsc->fd, buff, -ret, wsc->wss->path) > 0)
+            if (ws_replyClient(wsc->fd, buff, -ret, wsc->wss->path) > 0)
             {
                 //这个延时很有必要,否则下面onLogin里面发东西客户端可能收不到
                 ws_delayms(5);
@@ -130,13 +131,14 @@ static int client_recv(Ws_Client *wsc)
 // }
 
 //onExit异步回调
-static void client_onExit(void *argv)
+static void* client_onExit(void *argv)
 {
     Ws_Client *wsc = (Ws_Client *)argv;
     if (wsc->wss->onExit)
         wsc->wss->onExit(wsc, wsc->exitType);
     //重置结构体,给下次使用
     memset(wsc, 0, sizeof(Ws_Client));
+    return NULL;
 }
 
 //取得空闲的坑,返回序号
@@ -260,7 +262,7 @@ static void client_detect(Ws_Thread *wst, bool delAll)
 
 //服务器副线程,负责检测 数据接收 和 客户端断开
 //只要还有一个客户端在维护就不会退出线程
-static void server_thread2(void *argv)
+static void* server_thread2(void *argv)
 {
     Ws_Thread *wst = (Ws_Thread *)argv;
     int nfds, count;
@@ -299,10 +301,11 @@ static void server_thread2(void *argv)
     client_detect(wst, true);
     //清空内存,下次使用
     memset(wst, 0, sizeof(Ws_Thread));
+    return NULL;
 }
 
 //服务器主线程,负责检测 新客户端接入
-static void server_thread(void *argv)
+static void* server_thread(void *argv)
 {
     Ws_Server *wss = (Ws_Server *)argv;
     int ret, count;
@@ -324,7 +327,7 @@ static void server_thread(void *argv)
     if ((wss->fd = socket(AF_INET, SOCK_STREAM, 0)) <= 0)
     {
         WSS_ERR("create socket failed\r\n");
-        return;
+        return NULL;
     }
 
     //地址可重用设置(有效避免bind超时)
@@ -361,6 +364,9 @@ static void server_thread(void *argv)
     //向epoll注册server_sockfd监听事件
     _epoll_ctrl(wss->fd_epoll, wss->fd, EPOLLIN | EPOLLET, EPOLL_CTL_ADD, NULL);
 
+    //正式开始
+    WSS_INFO("server ws://127.0.0.1:%d%s start \r\n", wss->port, wss->path);
+
     while (!wss->isExit)
     {
         //等待事件发生,-1阻塞,0/非阻塞,其它数值为超时ms
@@ -395,6 +401,7 @@ server_exit:
     //关闭socket
     close(wss->fd);
     wss->fd = 0;
+    return NULL;
 }
 
 void ws_server_release(Ws_Server **wss)

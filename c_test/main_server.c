@@ -58,7 +58,7 @@ void onLogin(Ws_Client *wsc)
         wsc->fd, wsc->index, wsc->wss->clientCount,
         wsc->ip[0], wsc->ip[1], wsc->ip[2], wsc->ip[3], wsc->port);
     //打招呼
-    ws_send(wsc->fd, "Say hi~ I am server", 19, false, WDT_TXTDATA);
+    ws_send(wsc->fd, (char*)"Say hi~ I am server", 19, false, WDT_TXTDATA);
 }
 
 //客户端断开时(已断开),你要做什么?

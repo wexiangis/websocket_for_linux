@@ -25,18 +25,21 @@ typedef enum
     WDT_PONG,     // 0xA：pong类型数据包
 } Ws_DataType;
 
-int ws_connectToServer(char *ip, int port, char *path, int timeoutMs);
-int ws_responseClient(int fd, char *data, int dataLen, char *path);
+int32_t ws_requestServer(char* ip, int32_t port, char* path, int32_t timeoutMs);
+int32_t ws_replyClient(int32_t fd, char* buff, int32_t buffLen, char* path);
 
-int ws_send(int fd, char *data, int dataLen, bool mask, Ws_DataType type);
-int ws_recv(int fd, char *data, int dataMaxLen, Ws_DataType *type);
+int32_t ws_send(int32_t fd, void* buff, int32_t buffLen, bool mask, Ws_DataType type);
+int32_t ws_recv(int32_t fd, void* buff, int32_t buffSize, Ws_DataType *retType);
 
-void ws_delayus(uint32_t us);
-void ws_delayms(uint32_t ms);
-char *ws_time(void); //返回时间戳,格式如"20:45:30"
+//返回时间戳,格式如"20:45:30"
+char* ws_time(void);
 
 //域名转IP工具,成功返回大于0请求时长ms,失败返回负值的请求时长ms
-int ws_getIpByHostName(const char *hostName, char *retIp, int timeoutMs);
+int ws_getIpByHostName(const char* hostName, char* retIp, int timeoutMs);
+
+//延时工具
+void ws_delayus(uint32_t us);
+void ws_delayms(uint32_t ms);
 
 #ifdef __cplusplus
 }

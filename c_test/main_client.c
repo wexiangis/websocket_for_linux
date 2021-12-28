@@ -55,7 +55,7 @@ int main(int argc, char **argv)
 
     //3秒超时连接服务器
     //同时大量接入时,服务器不能及时响应,可以加大超时时间
-    if ((fd = ws_connectToServer(ip, port, path, 3000)) <= 0)
+    if ((fd = ws_requestServer(ip, port, path, 3000)) <= 0)
     {
         printf("connect failed !!\r\n");
         return -1;
@@ -173,7 +173,7 @@ int main(int argc, char **argv)
         strcpy(path, argv[3]);
     }
 
-    fd = ws_connectToServer(ip, port, path, 2000);
+    fd = ws_requestServer(ip, port, path, 2000);
     if (fd < 1)
     {
         printf("connect failed !!\r\n");
