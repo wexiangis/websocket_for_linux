@@ -613,7 +613,7 @@ static void ws_buildHttpHead(char* ip, int32_t port, char* path, char* shakeKey,
  * 返回: 无
  * 说明: 无
  ******************************************************************************/
-static void ws_buildHttpRespond(char* acceptKey, uint32_t acceptKeyLen, char* package)
+static void ws_buildHttpRespond(char* acceptKey, uint32_t acceptKeyLen, char * protVal, char* package)
 {
     const char httpDemo[] =
         "HTTP/1.1 101 Switching Protocols\r\n"
@@ -621,11 +621,13 @@ static void ws_buildHttpRespond(char* acceptKey, uint32_t acceptKeyLen, char* pa
         "Server: Microsoft-HTTPAPI/2.0\r\n"
         "Connection: Upgrade\r\n"
         "Sec-WebSocket-Accept: %s\r\n"
+        "%s"
         "%s\r\n\r\n"; //时间打包待续, 格式如 "Date: Tue, 20 Jun 2017 08:50:41 CST\r\n"
     time_t now;
     struct tm *tm_now;
     char timeStr[256] = {0};
     char respondShakeKey[256] = {0};
+    
     //构建回应的握手key
     ws_buildRespondShakeKey(acceptKey, acceptKeyLen, respondShakeKey);
     //构建回应时间字符串
@@ -633,7 +635,11 @@ static void ws_buildHttpRespond(char* acceptKey, uint32_t acceptKeyLen, char* pa
     tm_now = localtime(&now);
     strftime(timeStr, sizeof(timeStr), "Date: %a, %d %b %Y %T %Z", tm_now);
     //组成回复信息
-    sprintf(package, httpDemo, respondShakeKey, timeStr);
+    char sproto[128] ={""};
+    if( protVal && strlen(protVal)>0){
+        sprintf(sproto,"Sec-WebSocket-Protocol:%s\r\n", protVal);
+    }
+    sprintf(package, httpDemo, respondShakeKey, sproto, timeStr);
 }
 
 /*******************************************************************************
@@ -1087,9 +1093,10 @@ int32_t ws_requestServer(char* ip, int32_t port, char* path, int32_t timeoutMs)
  ******************************************************************************/
 int32_t ws_replyClient(int32_t fd, char* buff, int32_t buffLen, char* path)
 {
-    char* keyOffset;
+    char* keyOffset, *protOffset;
     int32_t ret;
     char recvShakeKey[512] = {0};
+    char recvPotocol[512] ={0};
     char respondPackage[1024] = {0};
 #ifdef WS_DEBUG
     WS_INFO("recv: len %d \r\n%s\r\n", buffLen, buff);
@@ -1115,8 +1122,19 @@ int32_t ws_replyClient(int32_t fd, char* buff, int32_t buffLen, char* path)
         WS_ERR("Sec-WebSocket-Key not matched\r\n");
         return -1;
     }
+
+    if (!(protOffset = strstr((char*)buff, "Sec-WebSocket-Protocol: ")))
+    {
+        WS_INFO("Sec-WebSocket-Protocol not found\r\n");
+    }else{
+        //获取握手key
+        protOffset += strlen("Sec-WebSocket-Protocol: ");
+        sscanf((const char*)protOffset, "%s", recvPotocol);
+        WS_INFO("Sec-WebSocket-Protocol:[%s]\r\n[%s]\n", recvPotocol,buff);
+    }
+
     //创建回复key
-    ws_buildHttpRespond(recvShakeKey, (uint32_t)ret, respondPackage);
+    ws_buildHttpRespond(recvShakeKey,  (uint32_t)ret, recvPotocol, respondPackage);
     return send(fd, respondPackage, strlen((const char*)respondPackage), MSG_NOSIGNAL);
 }
 
